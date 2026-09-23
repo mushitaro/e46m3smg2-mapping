@@ -1,0 +1,12 @@
+{
+  "name": "@tsunagi/ds2-transport",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "Byte transports for DS2: Web Serial on desktop, WebUSB + FTDI on Android, and the rule that picks between them.",
+  "exports": { ".": "./src/index.ts" },
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "dependencies": { "@tsunagi/ds2-core": "0.1.0" }
+}

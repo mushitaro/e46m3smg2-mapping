@@ -1,0 +1,3 @@
+# Hooks run under sh, which reads a CRLF shebang as a program called "sh\r".
+.githooks/* text eol=lf
+*.png binary

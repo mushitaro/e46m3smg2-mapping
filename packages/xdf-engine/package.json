@@ -1,0 +1,11 @@
+{
+  "name": "@tsunagi/xdf-engine",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "TunerPro XDF parser, validator and codec. ECU-agnostic; endianness and signedness come from the definition, never from a build-time assumption.",
+  "exports": { ".": "./src/index.ts" },
+  "main": "./src/index.ts",
+  "types": "./src/index.ts"
+}

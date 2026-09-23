@@ -1,0 +1,11 @@
+{
+  "name": "@tsunagi/c166",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "C16x / ST10 decoder and recursive-descent sweep. Reads the image the user loaded; ships no disassembly of its own.",
+  "exports": { ".": "./src/index.ts" },
+  "main": "./src/index.ts",
+  "types": "./src/index.ts"
+}

@@ -1,0 +1,11 @@
+{
+  "name": "@tsunagi/ds2-smg2-write",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "The SMG II write path, alone in its own package so @tsunagi/ds2-smg2 stays provably read-only.",
+  "exports": { ".": "./src/index.ts" },
+  "main": "./src/index.ts",
+  "types": "./src/index.ts"
+}

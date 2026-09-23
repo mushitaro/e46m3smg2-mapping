@@ -1,0 +1,12 @@
+{
+  "name": "@tsunagi/ds2-smg2",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "SMG II (Siemens SMG2, DS2 0x32) specific layer: identity, memory layout, read-only link policy, live-value blocks.",
+  "exports": { ".": "./src/index.ts" },
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "dependencies": { "@tsunagi/ds2-core": "0.1.0" }
+}

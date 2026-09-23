@@ -1,0 +1,16 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "smg2-drivelogic",
+  "compatibility_date": "2026-08-01",
+  "pages_build_output_dir": "out",
+  "d1_databases": [
+    {
+      // The binding name the Pages Functions see. Kept explicit rather than taking wrangler's
+      // suggested `smg2_tuner_runs`, so the code reads as a role rather than as a database name.
+      "binding": "RUNS_DB",
+      "database_name": "smg2-tuner-runs",
+      "database_id": "e7728f3c-7a98-4c4b-a9fb-a3b763210a54",
+      "migrations_dir": "migrations"
+    }
+  ]
+}

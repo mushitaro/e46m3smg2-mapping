@@ -1,0 +1,5 @@
+#!/bin/sh
+# This repository is public. Refuse a commit that stages anything check-public-tree would refuse:
+# BMW data, third-party XDFs, dumps, local state, secrets, a real VIN.
+# Installed by `npm run hooks:install` (git config core.hooksPath .githooks).
+exec node scripts/check-public-tree.mjs --staged

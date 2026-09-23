@@ -1,0 +1,41 @@
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+
+# This repository is public. Everything below is either not ours to publish, one car's data, or a
+# secret. `scripts/check-public-tree.mjs` (pre-commit and CI) fails if any of it is tracked anyway.
+
+# Pulled extractions and diagnostics. These are dumps of somebody's ECU plus the identity of the
+# car they came from; they belong on a disk, not in a repository.
+data/
+
+# Analysis output generated from a real dump (function entry points of one car's firmware).
+build/
+
+# Secrets and local state. `.env.local` and `.sync-token` held the retired shared sync token;
+# nothing reads them any more, and they stay out of git. `.dev.vars` holds M3_CLIENT_SECRET and
+# GATE_DEV_ACCOUNT for `wrangler pages dev`. `.wrangler/` is the local D1 and its rows.
+.env
+.env.*
+.sync-token
+.upload-token*
+.dev.vars
+.wrangler/
+
+# BMW SP-DATEN and the factory calibrations extracted from it. Not ours to redistribute. The
+# deployed preview serves the four .0DA files from the operator's local build, behind the owner
+# gate, as the STOCK reference; without them the app degrades to "no factory reference" rather
+# than failing.
+E46_v74/
+public/factory/
+
+# The MS4X Dev Team's TunerPro definitions (third-party; see THIRD-PARTY-NOTICES.md). The app
+# needs them at runtime and the tests assert on them, so README.md says where to put them; the
+# tests skip when they are absent.
+public/xdf/
+packages/xdf-engine/fixtures/*.xdf
+*.xdf
+
+# Local tooling state.
+.claude/

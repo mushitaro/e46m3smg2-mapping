@@ -1,0 +1,52 @@
+{
+  "name": "e46m3-smg2-tuner",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "description": "TSUNAGI ///M — SMG II DRIVELOGIC. E46 M3 Siemens SMG2 510 calibration extract & edit.",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "next dev -p 5047",
+    "build": "node scripts/build.mjs",
+    "start": "next start",
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "verify:ds2-core-sync": "node scripts/verify-ds2-core-sync.mjs",
+    "icons": "node scripts/gen-icons.mjs",
+    "preview": "wrangler pages dev out --port 5048",
+    "deploy": "node scripts/deploy.mjs",
+    "pull": "node scripts/pull-extractions.mjs",
+    "pull:diag": "node scripts/pull-diagnostics.mjs",
+    "check:public-tree": "node scripts/check-public-tree.mjs",
+    "hooks:install": "git config core.hooksPath .githooks"
+  },
+  "dependencies": {
+    "@tsunagi/ds2-core": "0.1.0",
+    "@tsunagi/ds2-smg2": "0.1.0",
+    "@tsunagi/ds2-transport": "0.1.0",
+    "@tsunagi/xdf-engine": "0.1.0",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.562.0",
+    "next": "16.1.1",
+    "plotly.js": "^3.3.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-plotly.js": "^2.6.0",
+    "tailwind-merge": "^3.4.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260827.1",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^22",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "tailwindcss": "^4",
+    "typescript": "^5",
+    "vitest": "^3",
+    "wrangler": "^4.127.0"
+  }
+}
