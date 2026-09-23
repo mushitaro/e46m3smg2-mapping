@@ -12,7 +12,7 @@
     "build": "node scripts/build.mjs",
     "start": "next start",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p functions",
     "test": "vitest run",
     "test:watch": "vitest",
     "verify:ds2-core-sync": "node scripts/verify-ds2-core-sync.mjs",
@@ -22,7 +22,8 @@
     "pull": "node scripts/pull-extractions.mjs",
     "pull:diag": "node scripts/pull-diagnostics.mjs",
     "check:public-tree": "node scripts/check-public-tree.mjs",
-    "hooks:install": "git config core.hooksPath .githooks"
+    "hooks:install": "git config core.hooksPath .githooks",
+    "gate:verify": "node scripts/gate-verify.mjs --functions functions --client src/lib/owner-sync.ts"
   },
   "dependencies": {
     "@tsunagi/ds2-core": "0.1.0",
