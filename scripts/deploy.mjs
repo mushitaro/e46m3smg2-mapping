@@ -14,7 +14,10 @@
  *    origin serves the app, the API and BMW's factory calibrations to anyone.
  * 3. **check-public-tree fails.** What is served has to be buildable from the public repository.
  * 4. **The working tree has changes** (untracked CLAUDE.md and .claude/ aside). A build from
- *    uncommitted files serves source nobody can read.
+ *    uncommitted files serves source nobody can read. Nor may anything ignored sit under public/
+ *    or functions/ except the expected local BMW and MS4X files (REQUIRED_LOCAL, under public/):
+ *    `git status` does not show ignored files, but the build copies public/ into out/ whole, so a
+ *    stray dump under public/data/ or a public/.env.local would otherwise ship without a word.
  * 5. **HEAD is not origin/main.** The preview serves only source that is public on
  *    github.com/mushitaro/e46m3smg2-mapping. With no remote yet it refuses and says the repository
  *    has to be pushed first.
@@ -103,7 +106,16 @@ const dirty = git('status', '--porcelain')
     .filter(Boolean)
     .filter(line => !/^\?\? (CLAUDE\.md|\.claude\/)/.test(line));
 if (dirty.length) refuse(`the working tree has changes; commit and push them first:\n  ${dirty.join('\n  ')}`);
-ok('working tree clean');
+const expectedLocal = new Set(REQUIRED_LOCAL.map(file => `public/${file}`));
+const strays = git('ls-files', '-z', '--others', '--ignored', '--exclude-standard', '--', 'public', 'functions')
+    .split('\0')
+    .filter(Boolean)
+    .filter(path => !expectedLocal.has(path));
+if (strays.length) {
+    refuse('ignored files under public/ or functions/ would be uploaded with the build; only the local '
+        + `factory and XDF files may sit there. Move these out of the tree:\n  ${strays.join('\n  ')}`);
+}
+ok(`working tree clean; nothing ignored under public/ or functions/ but the ${expectedLocal.size} local files`);
 
 // 5. the source is public
 const branch = git('rev-parse', '--abbrev-ref', 'HEAD');
