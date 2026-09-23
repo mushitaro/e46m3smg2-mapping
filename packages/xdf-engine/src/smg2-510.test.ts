@@ -171,7 +171,7 @@ describe('layout', () => {
 });
 
 describe('validation', () => {
-    const findings = validateXdf(DEF_512K, { source: SRC_512K });
+    const findings = HAVE_FIXTURES ? validateXdf(DEF_512K, { source: SRC_512K }) : [];
 
     it('catches the two real collisions in this definition', () => {
         const overlaps = findings.filter(f => f.kind === 'value-overlap');
@@ -226,7 +226,9 @@ describe('validation', () => {
 });
 
 describe('coverage', () => {
-    const report = coverageOf(DEF_24K, { windowStart: 0, windowEnd: PARTIAL_LENGTH });
+    const report = HAVE_FIXTURES
+        ? coverageOf(DEF_24K, { windowStart: 0, windowEnd: PARTIAL_LENGTH })
+        : (undefined as unknown as ReturnType<typeof coverageOf>);
 
     it('accounts for 5,477 of the 24,576 bytes', () => {
         expect(report.definedBytes).toBe(5477);
