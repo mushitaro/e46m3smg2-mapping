@@ -38,7 +38,7 @@ README.md §Preview.
 
 This tool reads and edits a BMW transmission ECU. Four kinds of input make it useful, and none of
 them is ours to publish. `.gitignore` excludes each one, and `scripts/check-public-tree.mjs`
-(pre-commit and CI) fails if any of them is ever tracked.
+(pre-commit, and again before every deploy) fails if any of them is ever tracked.
 
 ### 2.1 BMW SP-DATEN — `E46_v74/`, `public/factory/*.0DA`
 

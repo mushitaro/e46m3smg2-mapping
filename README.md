@@ -1,25 +1,77 @@
-# SMG II DRIVELOGIC
+# E46M3SMG2 /// MAPPING
 
 TSUNAGI ///M — E46 M3 の **SMG II 変速機 ECU（Siemens SMG2、software 510、DS2 `0x32`）** の
-較正領域を車両から吸い出し、TunerPro XDF 定義で読み書きするツール。
+較正領域を車両から吸い出し、TunerPro XDF 定義で読み、編集して書き出すツール。MIT ライセンス。
 
-> **このビルドは ECU に書き込めません。** 消去・書込のバイト列を組み立てるコードが存在せず、
-> ロード時の不変条件がそれを保証しています（`packages/ds2-smg2/src/link.ts` → `assertReadOnly`）。
+> **このビルドは ECU に書き込みません。** 車に送られるのは読み取りのテレグラムだけです。
+> 車と話すリンク（`packages/ds2-smg2`）はロード時の不変条件で読み取り専用に固定されています
+> （`packages/ds2-smg2/src/link.ts` → `assertReadOnly`）。
+> 消去・書込のテレグラムを組み立てるコードは別パッケージ `packages/ds2-smg2-write` にあり、
+> 書き込みの前提条件を画面に出すため（`FlashDialog` と `preflight`）に使っていますが、
+> `CAPABILITIES.canWriteToEcu` は `false` で、それを車へ送る経路はありません。
 > 理由は §書き込みが無い理由 を参照。
 
 ```bash
 npm install
-npm run dev      # http://localhost:5047
-npm test         # 152 tests
-npm run build    # 静的エクスポート + Service Worker 生成
-npm run preview  # wrangler pages dev（Functions + D1 込み）
-npm run pull     # D1 から抽出データを data/extractions/ に落とす
+npm run hooks:install  # pre-commit で check-public-tree を走らせる（最初に一度）
+npm run dev            # http://localhost:5047
+npm test               # 292 tests（手元に無いファイルに依存するものは skip）
+npm run typecheck      # アプリと functions/ の両方
+npm run build          # 製品版: 静的エクスポート + Service Worker（SYNC なし）
+npm run build:preview  # オーナー向けプレビュー版（名前・アイコン・app-variant を付け替える）
+npm run gate:verify    # オーナーゲートが正本と一致し、有効になっているか
+npm run preview        # wrangler pages dev（ゲート・Functions・D1 込み）→ §手元で動かす
+npm run pull           # D1 から抽出データを data/extractions/ に落とす（運営者用）
 ```
+
+## オーナー向けプレビュー版
+
+製品版（`npm run build`）は端末の中だけで動き、どこにも何も送りません。
+**プレビュー版**（`e46m3smg2-mapping-preview.pages.dev`、アプリ名 `P SMG2 MAP`）は、
+MILE をご購入の方と過去の施工オーナーさん（m3 でプレビューの権利を持つアカウント）が、
+開発中の版を先に使うためのものです。製品版に次のものが加わります。
+
+- **SYNC** — 読んだイメージ・読み取りの記録・編集を、自分のアカウントに保存する。
+  STARTUP › CLOUD に一覧が出て、別の端末へ復元・削除できる。保存先は「保存先 アカウント #XXXX」と表示
+- **自動の診断レコード** — 読み取りの完了と、接続・PROBE・読み取りの失敗のたびに、ログとテレグラムを
+  自動で記録する。送れないとき（オフライン・期限切れ）は端末に保管し、次に送れたときに送る
+
+プレビュー版は**オリジン全体がオーナーゲートの内側**にあります（`functions/_middleware.ts`、
+正本は tsunagi-m3 の `tools/owner-gate`）。開くと m3（`m3.tsunagi.app`）でのログインと
+プレビューの権利を確かめ、通った人だけにアプリ・API・工場データを出します。
+保存したものは本人のアカウントからしか見えません（全クエリが `owner = ?`）。
+何を送り、何に使い、どう消せるかは
+[プライバシーポリシーのプレビュー版の節](https://m3.tsunagi.app/privacy-policy#preview)
+（[English](https://m3.tsunagi.app/en/privacy-policy#preview)）にあります。アプリの PRIVACY からも開けます。
+
+配信は `npm run deploy` だけで行います。ゲートが無い・公開ツリーの検査に落ちる・作業ツリーが汚れている・
+HEAD が `origin/main`（公開リポジトリ）と違う・ビルドがプレビュー版でない、のどれかなら拒否します
+（`scripts/deploy.mjs` の冒頭に理由つきで列挙）。
+
+## 手元で動かす（ゲート・Functions・D1 込み）
+
+`npm run dev` は画面だけです。SYNC まで動かすには、プレビュー版をビルドして `wrangler pages dev` で開きます。
+
+1. リポジトリ直下に `.dev.vars` を作る（gitignore 済み。コミットしない）:
+
+   ```
+   M3_CLIENT_SECRET=<32 文字以上のランダムな文字列。手元用なので何でもよい>
+   GATE_DEV_ACCOUNT=<任意の UUID。例 aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa>
+   ```
+
+   `GATE_DEV_ACCOUNT` は m3 を経由せずに「この UUID のアカウントとしてログイン済み」とみなす手元用の
+   抜け道で、**ホストが localhost / 127.0.0.1 のときだけ効きます**（配信先では無視される）。
+   UUID を変えて起動し直すと、別のオーナーとして分離を確かめられます。
+
+2. ローカルの D1 にマイグレーションを当てる: `npx wrangler d1 migrations apply smg2-tuner-runs --local`
+3. `npm run build:preview && npm run preview` → http://localhost:5048
+
+リモートの D1 に当てる操作（`--remote`）と配信は運営者だけが行います。
 
 ## 手元に必要なファイル（このリポジトリには入っていないもの）
 
 このリポジトリは公開です。次の 3 種類は**他者のもの、または 1 台の車のもの**なので入っていません
-（`.gitignore` 済み。`npm run check:public-tree` がコミット前と CI で検査します）。
+（`.gitignore` 済み。`npm run check:public-tree` がコミット前（pre-commit フック）と `npm run deploy` で検査します）。
 理由と出所は [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)。
 
 | 置き場所 | 中身 | 無いとどうなるか |
@@ -39,8 +91,8 @@ npm run pull     # D1 から抽出データを data/extractions/ に落とす
 Chrome for Android は `navigator.serial` を持つのに Bluetooth しか列挙せず、
 USB の K+DCAN はピッカーに出ないためです。`/link-check` で自分の端末の経路を確認できます。
 
-**PWA / モバイル / D1 共有**: Android Chrome から WebUSB(FTDI) で吸い出して
-Cloudflare D1 に上げ、`npm run pull` で手元に落とせます。詳細は
+**PWA / モバイル / SYNC**: Android Chrome から WebUSB(FTDI) で吸い出せます。プレビュー版では
+SYNC で自分のアカウントに保存でき、運営者は `npm run pull` で手元に落とせます。詳細は
 [docs/pwa-and-sync.md](docs/pwa-and-sync.md)。iOS は Web Serial も WebUSB も無いため**非対応**。
 
 ハードウェア無しで全経路を試すには、DEVICE タブの **PRACTICE MODE**。
@@ -65,11 +117,11 @@ Cloudflare D1 に上げ、`npm run pull` で手元に落とせます。詳細は
 ## ワークフロー
 
 ```
-                        ┌─ 較正窓 24K ──> 24,576 B ──(編集)──> EXPORT / SHARE
+                        ┌─ 較正窓 24K ──> 24,576 B ──(編集)──> EXPORT / SYNC
 CONNECT ──> PROBE ──> READ                                        ▲
    │          │       └─ フル 512K ──> 524,288 B ──(逆アセンブル)─┘
    │          │                │
-   │          │                └─(落ちた/STOP)─> 生キャプチャ ──> EXPORT / SHARE のみ
+   │          │                └─(落ちた/STOP)─> 生キャプチャ ──> EXPORT / SYNC のみ
    │          └─ セグメントとベースアドレスを IDENT アンカーで同定
    └─ DS2 0x32 / 9600 8E1 / K+DCAN
 ```
@@ -87,7 +139,7 @@ UI の残り時間表示も同じ考えで、**その読み取りが実際に出
 ケーブルを抜くのは間違いで、18 分もあれば間違ったほうが使われます）。
 止めた場合も落ちた場合も、**届いたバイトは生キャプチャとして残ります**。
 24,576 でも 524,288 でもない長さにはどちらの定義も当たらないので、TUNE と COVERAGE は
-開きませんが、EXPORT と SHARE は効きます。18 分読んで最後のテレグラムで落ちたから
+開きませんが、EXPORT と（プレビュー版では）SYNC は効きます。18 分読んで最後のテレグラムで落ちたから
 全部捨てる、が一番損だからです。
 
 hub の面は状態から**導出**されます（`src/app/page.tsx` → `hubConfig`）。保存された「今どのボタン」は
@@ -227,15 +279,19 @@ packages/
   ds2-smg2/         SMG II 固有: メモリ配置・読取専用リンク・アドレス空間 PROBE
   ds2-transport/    バイトトランスポート2種と経路判定。Tuner の byteTransport.ts 系を移植
   xdf-engine/       XDF パーサ / バリデータ / コーデック（ECU 非依存、エンディアンは定義から）
-functions/          Cloudflare Pages Functions（D1 への追記と読み出しのみ）
+functions/          Cloudflare Pages Functions: オーナーゲート（_middleware.ts・_owner-gate/）と
+                    SYNC API（/api/extractions・/api/diagnostics。持ち主ごとに分けて保存・一覧・取得・削除）
 migrations/         D1 スキーマ
-scripts/            アイコン生成 / SW 生成 / ds2-core 同期検査 / D1 からの取り出し
+scripts/            ビルド順序 / プレビューのブランド付け / SW 生成 / ds2-core 同期検査 /
+                    ゲート・公開ツリー・ブランドの検査 / 配信の関門 / D1 からの取り出し
+public/icons/       M ICON の mapping セット（製品版）と -dev- セット（プレビュー版）。
+                    tsunagi-m3 の scripts/m-icons.mjs --word mapping で生成
 src/
   app/page.tsx        シェル。hub は hubConfig() で導出
   components/         ui.tsx・Hub.tsx・MMark.tsx は ///M 共通プリミティブ
   hooks/useSmg2Link   ケーブルの状態だけを持つ（ワークスペースの有無は持たない）
   hooks/usePwa        SW 登録・更新通知・インストールプロンプト
-  lib/                定義の選択・ワークスペース・PRACTICE デバイス・D1 同期
+  lib/                定義の選択・ワークスペース・PRACTICE デバイス・SYNC（owner-sync.ts は正本の複製）
 ```
 
 `ds2-core` は**編集しないこと**。直すなら上流（`E46M3-Diagnosis/packages/ds2-core`）を直して
