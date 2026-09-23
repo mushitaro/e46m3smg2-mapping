@@ -4,13 +4,16 @@
  *
  * The companion to `pull-extractions.mjs`. That one brings down images; this one brings down what
  * happened, including for the runs that produced no image. Failures are listed first because that
- * is what this table is read for.
+ * is what this table is read for. Like that one it is the operator's view: every owner's records,
+ * each printed with the account it belongs to.
  *
  *   node scripts/pull-diagnostics.mjs                # newest 50, real runs
  *   node scripts/pull-diagnostics.mjs --failed       # only the runs that went wrong
  *   node scripts/pull-diagnostics.mjs --practice     # include simulated ones
  *   node scripts/pull-diagnostics.mjs --list         # metadata only
  *   node scripts/pull-diagnostics.mjs --id <id>
+ *   node scripts/pull-diagnostics.mjs --sha <sha256> # the records of one image's reads (a prefix will do)
+ *   node scripts/pull-diagnostics.mjs --owner <uuid> # one account's records
  *   node scripts/pull-diagnostics.mjs --local        # the `npm run preview` database
  *
  * Output lands in `data/diagnostics/`, which is gitignored along with the rest of `data/`.
@@ -40,10 +43,17 @@ const includePractice = flag('--practice');
 const listOnly = flag('--list');
 const local = flag('--local');
 const onlyId = value('--id', null);
+const onlySha = value('--sha', null)?.toLowerCase() ?? null;
+const onlyOwner = value('--owner', null);
+if (onlySha !== null && !/^[0-9a-f]{4,64}$/.test(onlySha)) {
+    console.error('--sha takes hex digits (a prefix of the SHA-256 will do).');
+    process.exit(1);
+}
+const quote = text => `'${text.replace(/'/g, "''")}'`;
 const limit = Number(value('--limit', '50'));
 
 const META = [
-    'id', 'created_at', 'kind', 'ok', 'error', 'route', 'practice', 'app_build',
+    'id', 'owner', 'created_at', 'kind', 'ok', 'error', 'route', 'practice', 'app_build',
     'zb_number', 'segment', 'base_address', 'extraction_sha',
     'chunk_size', 'exchanges', 'retries', 'bytes_done', 'elapsed_ms',
     'trace_dropped', 'tx_bytes', 'rx_bytes',
@@ -61,9 +71,12 @@ function d1(sql) {
 }
 
 const clauses = [];
-if (onlyId) clauses.push(`id = '${onlyId.replace(/'/g, "''")}'`);
+if (onlyId) clauses.push(`id = ${quote(onlyId)}`);
+if (onlySha) clauses.push(`extraction_sha LIKE '${onlySha}%'`);
+if (onlyOwner) clauses.push(`owner = ${quote(onlyOwner)}`);
 if (failedOnly) clauses.push('ok = 0');
-if (!includePractice) clauses.push('practice = 0');
+// Asking for one record or one image's reads is asking for them whatever they are.
+if (!includePractice && !onlyId && !onlySha) clauses.push('practice = 0');
 const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
 
 // Failures first, then most recent: the ordering matches why the table is read.
@@ -80,7 +93,7 @@ console.log(`\n${rows.length} diagnostic(s):\n`);
 for (const r of rows) {
     const outcome = r.ok ? 'ok    ' : 'FAILED';
     console.log(
-        `  ${r.id.slice(0, 8)}  ${when(r.created_at)}  ${outcome}  ${String(r.kind).padEnd(7)} ` +
+        `  ${r.id.slice(0, 8)}  ${r.owner ? String(r.owner).slice(0, 8) : '--------'}  ${when(r.created_at)}  ${outcome}  ${String(r.kind).padEnd(7)} ` +
         `${(r.route ?? '--').padEnd(13)}${r.practice ? ' [PRACTICE]' : ''}`);
     if (!r.ok && r.error) console.log(`            ${String(r.error).slice(0, 150)}`);
     if (r.exchanges !== null) {
@@ -98,11 +111,12 @@ if (listOnly) process.exit(0);
 
 mkdirSync(OUT_DIR, { recursive: true });
 for (const meta of rows) {
-    const [full] = d1(`SELECT log_text, trace_gz_b64 FROM diagnostics WHERE id = '${meta.id}'`);
+    const [full] = d1(`SELECT log_text, trace_gz_b64 FROM diagnostics WHERE id = ${quote(meta.id)}`);
     const stem = `${meta.ok ? '' : 'FAILED_'}${meta.practice ? 'PRACTICE_' : ''}${meta.id.slice(0, 8)}`;
 
     const parts = [
         `id        ${meta.id}`,
+        `owner     ${meta.owner ?? '--'}`,
         `at        ${when(meta.created_at)}`,
         `kind      ${meta.kind}`,
         `outcome   ${meta.ok ? 'ok' : `FAILED — ${meta.error ?? 'no message'}`}`,

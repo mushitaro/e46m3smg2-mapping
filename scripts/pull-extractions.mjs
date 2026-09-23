@@ -8,14 +8,21 @@
  *
  * It shells out to `wrangler d1 execute --json` rather than talking to the HTTP API, for two
  * reasons: it works whether or not the app has been deployed, and it needs no token beyond the
- * wrangler login that is already there.
+ * wrangler login that is already there. The HTTP API shows each owner only their own rows; this
+ * is the operator's view of the table, so every row is printed with the account it belongs to.
  *
- *   node scripts/pull-extractions.mjs                 # real extractions, newest 50
- *   node scripts/pull-extractions.mjs --practice      # include simulated ones
+ *   node scripts/pull-extractions.mjs                   # real extractions, newest 50
+ *   node scripts/pull-extractions.mjs --practice        # include simulated ones
  *   node scripts/pull-extractions.mjs --limit 5
- *   node scripts/pull-extractions.mjs --list          # metadata only, download nothing
- *   node scripts/pull-extractions.mjs --id <sha256>   # one specific reading
- *   node scripts/pull-extractions.mjs --local         # the `wrangler pages dev` database
+ *   node scripts/pull-extractions.mjs --list            # metadata only, download nothing
+ *   node scripts/pull-extractions.mjs --sha <sha256>    # one image (a prefix will do), every owner's copy
+ *   node scripts/pull-extractions.mjs --owner <uuid>    # one account's rows
+ *   node scripts/pull-extractions.mjs --id <id>         # one row
+ *   node scripts/pull-extractions.mjs --local           # the `wrangler pages dev` database
+ *
+ * An image is found by its SHA-256, not by its id. The id used to be the hash; since rows became
+ * per-owner (`migrations/0003_owner.sql`) it is an opaque session key, and the same stock
+ * calibration read by two owners is two rows with one hash.
  *
  * Output lands in `data/extractions/`, which is gitignored: these are dumps of somebody's ECU.
  */
@@ -41,6 +48,8 @@ const value = (name, fallback) => {
 const includePractice = flag('--practice');
 const listOnly = flag('--list');
 const onlyId = value('--id', null);
+const onlySha = value('--sha', null)?.toLowerCase() ?? null;
+const onlyOwner = value('--owner', null);
 const limit = Number(value('--limit', '50'));
 /** The local miniflare database that `npm run preview` writes to. Remote is the default because
  *  that is where a phone's uploads land; local exists so this script can be exercised without
@@ -50,7 +59,7 @@ const local = flag('--local');
 /** Columns worth seeing without pulling an image down. Kept in one place so --list and the
  *  download path cannot disagree about what a row is. */
 const META_COLUMNS = [
-    'id', 'created_at', 'synced_at', 'label', 'transport', 'practice', 'app_build',
+    'id', 'owner', 'created_at', 'synced_at', 'label', 'transport', 'practice', 'app_build',
     'variant', 'byte_length', 'sha256', 'segment', 'base_address', 'zb_number',
     'manufacturer_data', 'checksum_stored', 'chunk_size', 'exchanges', 'retries',
     'elapsed_ms', 'verified_reread',
@@ -80,9 +89,18 @@ function d1(sql) {
     return parsed[0]?.results ?? [];
 }
 
-const where = onlyId
-    ? `WHERE id = '${onlyId.replace(/'/g, "''")}'`
-    : includePractice ? '' : 'WHERE practice = 0';
+const quote = text => `'${text.replace(/'/g, "''")}'`;
+if (onlySha !== null && !/^[0-9a-f]{4,64}$/.test(onlySha)) {
+    console.error('--sha takes hex digits (a prefix of the SHA-256 will do).');
+    process.exit(1);
+}
+const clauses = [];
+if (onlyId) clauses.push(`id = ${quote(onlyId)}`);
+if (onlySha) clauses.push(`sha256 LIKE '${onlySha}%'`);
+if (onlyOwner) clauses.push(`owner = ${quote(onlyOwner)}`);
+// Asking for one row or one image is asking for it whatever it is; practice is hidden otherwise.
+if (!includePractice && !onlyId && !onlySha) clauses.push('practice = 0');
+const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
 
 const rows = d1(`SELECT ${META_COLUMNS} FROM extractions ${where} ORDER BY created_at DESC LIMIT ${limit}`);
 
@@ -92,13 +110,15 @@ if (rows.length === 0) {
 }
 
 const when = ms => new Date(ms).toISOString().replace('T', ' ').slice(0, 19);
+/** An account, short enough to scan a list by. The full id is in index.json. */
+const account = id => (id ? String(id).slice(0, 8) : '--------');
 const hex = n => (n === null || n === undefined ? '--' : `0x${n.toString(16).toUpperCase().padStart(4, '0')}`);
 
 console.log(`\n${rows.length} extraction(s):\n`);
 for (const r of rows) {
     const verified = r.verified_reread === 1 ? 'verified' : r.verified_reread === 0 ? 'MISMATCH' : 'unverified';
     console.log(
-        `  ${r.sha256.slice(0, 12)}  ${when(r.created_at)}  ${r.variant.padEnd(12)} ` +
+        `  ${r.sha256.slice(0, 12)}  ${account(r.owner)}  ${when(r.created_at)}  ${r.variant.padEnd(12)} ` +
         `${String(r.byte_length).padStart(7)}B  zb=${r.zb_number ?? '--'}  ` +
         `cksum=${hex(r.checksum_stored)}  ${verified}` +
         `${r.practice ? '  [PRACTICE]' : ''}${r.label ? `  "${r.label}"` : ''}`);
@@ -115,22 +135,30 @@ if (listOnly) process.exit(0);
 
 mkdirSync(OUT_DIR, { recursive: true });
 const index = [];
+/**
+ * Files are named by the image, as they always were (tests and notes refer to `<hash12>.bin`). The
+ * same image under two owners is the one case that would overwrite, so only then is the account
+ * added to the name.
+ */
+const owners = new Map();
+for (const r of rows) owners.set(r.sha256, (owners.get(r.sha256) ?? new Set()).add(r.owner));
 
 for (const meta of rows) {
-    const [full] = d1(`SELECT image_gz_b64, edits_json, log_text FROM extractions WHERE id = '${meta.id}'`);
+    const [full] = d1(`SELECT image_gz_b64, edits_json, log_text FROM extractions WHERE id = ${quote(meta.id)}`);
     if (!full?.image_gz_b64) {
         console.warn(`  ! ${meta.sha256.slice(0, 12)} has no image`);
         continue;
     }
     const image = gunzipSync(Buffer.from(full.image_gz_b64, 'base64'));
 
-    // The hash is re-checked here rather than trusted. A row whose bytes do not hash to its id
+    // The hash is re-checked here rather than trusted. A row whose bytes do not hash to its sha256
     // went wrong somewhere between the ECU and this disk, and finding that out now is far cheaper
     // than finding it out after an afternoon of analysis.
     const actual = createHash('sha256').update(image).digest('hex');
     const trustworthy = actual === meta.sha256;
 
-    const stem = `${meta.practice ? 'PRACTICE_' : ''}${meta.sha256.slice(0, 12)}`;
+    const shared = owners.get(meta.sha256).size > 1;
+    const stem = `${meta.practice ? 'PRACTICE_' : ''}${meta.sha256.slice(0, 12)}${shared ? `-${account(meta.owner)}` : ''}`;
     const binPath = join(OUT_DIR, `${stem}.bin`);
     writeFileSync(binPath, image);
     if (full.log_text) writeFileSync(join(OUT_DIR, `${stem}.log.txt`), full.log_text, 'utf8');
