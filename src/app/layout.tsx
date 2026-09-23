@@ -10,18 +10,27 @@ import './globals.css';
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-jetbrains-mono' });
 
+/**
+ * The PRODUCTION identity, and only that. A preview build is this same export with its names,
+ * icons and `app-variant` rewritten by `scripts/brand-preview.mjs` — so nothing here may name an
+ * environment. The icons are the M ICON `mapping` set (tsunagi-m-release §4), written by
+ * tsunagi-m3's `scripts/m-icons.mjs`; the preview swaps each for its `-dev-` twin.
+ *
+ * No `appleWebApp.title`: left unset, iOS falls back to the manifest's `short_name`, so the home
+ * screen label is decided in one place — the one brand-preview rewrites.
+ */
 export const metadata: Metadata = {
-    title: 'SMG II DRIVELOGIC',
+    title: 'E46M3SMG2 /// MAPPING',
     description: 'E46 M3 Siemens SMG2 510 — calibration extract and edit. TSUNAGI ///M.',
     manifest: '/manifest.webmanifest',
-    applicationName: 'SMG II DRIVELOGIC',
-    appleWebApp: { capable: true, statusBarStyle: 'black-translucent', title: 'SMG II' },
+    applicationName: 'E46M3SMG2 /// MAPPING',
+    appleWebApp: { capable: true, statusBarStyle: 'black-translucent' },
     icons: {
         icon: [
-            { url: '/icons/icon.svg', type: 'image/svg+xml' },
-            { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+            { url: '/icons/mapping-32.png', sizes: '32x32', type: 'image/png' },
+            { url: '/icons/mapping-192.png', sizes: '192x192', type: 'image/png' },
         ],
-        apple: '/icons/icon-192.png',
+        apple: '/icons/mapping-256.png',
     },
 };
 

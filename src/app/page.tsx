@@ -1,9 +1,9 @@
 'use client';
 
 /**
- * SMG II DRIVELOGIC — the shell, laid out as the reference tuner lays out its CALIBRATION tab.
+ * E46M3SMG2 /// MAPPING — the shell, laid out as the reference tuner lays out its CALIBRATION tab.
  *
- *     header (48)   [LED] SMG II /// DRIVELOGIC · version · build | ZB · HW · SPACE  ⟷  tools
+ *     header (48)   [LED] E46M3SMG2 /// MAPPING · version · build | ZB · HW · SPACE  ⟷  tools
  *     ┌─ LEFT 61.8% ─────────────────────────────┬─ RIGHT 38.2% ───────────────────────────┐
  *     │ tab bar (44)  STARTUP · CALIBRATION       │ pane bar (44)  VISUALIZATION & INPUTS   │
  *     │ session bar (26)  source · BASE · CRC     │ visualization  (elastic) ValuePane      │
@@ -898,7 +898,7 @@ export default function Home() {
                         className={`block size-2 shrink-0 rounded-full ${LED[link.phase]}`}
                     />
                     <h1 className={`${WORDMARK} min-w-0 max-w-[60%] overflow-hidden text-ellipsis whitespace-nowrap text-slate-200 min-[900px]:max-w-none`}>
-                        SMG II <MMark /> DRIVELOGIC
+                        E46M3SMG2 <MMark /> MAPPING
                     </h1>
                     {/* Which build this is, once you are already inside it. */}
                     <span className="shrink-0 whitespace-nowrap font-mono text-[9px] text-slate-500">

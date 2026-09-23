@@ -1,7 +1,7 @@
 {
-  "name": "SMG II DRIVELOGIC",
-  "short_name": "SMG II",
-  "description": "E46 M3 Siemens SMG2 510 — read the transmission ECU's calibration, edit it, share it. Read-only against the ECU.",
+  "name": "E46M3SMG2 /// MAPPING",
+  "short_name": "SMG2 MAP",
+  "description": "E46 M3 Siemens SMG2 510 — read the transmission ECU's calibration, edit it, export it. Read-only against the ECU.",
   "id": "/",
   "start_url": "/",
   "scope": "/",
@@ -11,8 +11,9 @@
   "theme_color": "#000000",
   "categories": ["utilities", "productivity"],
   "icons": [
-    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    { "src": "/icons/mapping-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/mapping-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/mapping-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/mapping-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }

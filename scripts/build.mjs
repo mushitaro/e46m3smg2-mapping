@@ -2,13 +2,20 @@
 /**
  * The build, in one place, with the build id computed at the only moment it can be.
  *
+ *   node scripts/build.mjs                    production identity (no app-variant, no SYNC)
+ *   node scripts/build.mjs --label PREVIEW    the owner preview (app-variant "preview", dev icons)
+ *
  * The order is the whole point:
  *
  *   1. verify the vendored ds2-core has not drifted
  *   2. hash the SOURCE  -> `NEXT_PUBLIC_BUILD_ID`, inlined by the bundler
  *   3. `next build`
- *   4. `gen-sw.mjs`     -> hashes `out/`, names the service worker's cache
+ *   4. `brand-preview.mjs out <LABEL>` — only with --label: rewrites names, icons, app-variant
+ *   5. `gen-sw.mjs`     -> hashes `out/`, names the service worker's cache. LAST to touch out/.
+ *   6. `check-branding.mjs` reads the result back and fails on a build that is not what it says
  *
+ * One compile serves every environment; the label is applied to its output, so the preview runs
+ * the same bytes production would, plus the rewrites step 4 lists.
  * Step 2 has to precede step 3 because the bundler inlines `process.env.NEXT_PUBLIC_*` while it
  * builds; step 4 has to follow it because it hashes what was built. Writing the page's stamp into
  * `out/` after step 4 would rewrite bytes the cache name already described, which is the failure
@@ -47,6 +54,13 @@ function capture(command, args) {
     return result.stdout.trim();
 }
 
+const labelAt = process.argv.indexOf('--label');
+const LABEL = labelAt === -1 ? null : process.argv[labelAt + 1];
+if (labelAt !== -1 && !LABEL) {
+    console.error('[build] --label needs a value, e.g. --label PREVIEW');
+    process.exit(1);
+}
+
 run('node', ['scripts/verify-ds2-core-sync.mjs']);
 
 const buildId = capture('node', ['scripts/build-id.mjs']);
@@ -59,4 +73,6 @@ if (!/^[0-9a-f]{12}$/.test(buildId)) {
 console.log(`[build] source build id ${buildId}`);
 
 run('npx', ['next', 'build'], { NEXT_PUBLIC_BUILD_ID: buildId });
+if (LABEL) run('node', ['scripts/brand-preview.mjs', 'out', LABEL]);
 run('node', ['scripts/gen-sw.mjs'], { NEXT_PUBLIC_BUILD_ID: buildId });
+run('node', ['scripts/check-branding.mjs', 'out', LABEL ?? '--production']);

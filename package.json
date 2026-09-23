@@ -3,20 +3,20 @@
   "version": "0.1.0",
   "private": true,
   "license": "MIT",
-  "description": "TSUNAGI ///M — SMG II DRIVELOGIC. E46 M3 Siemens SMG2 510 calibration extract & edit.",
+  "description": "TSUNAGI ///M — E46M3SMG2 /// MAPPING. E46 M3 Siemens SMG2 510 calibration extract & edit.",
   "workspaces": [
     "packages/*"
   ],
   "scripts": {
     "dev": "next dev -p 5047",
     "build": "node scripts/build.mjs",
+    "build:preview": "node scripts/build.mjs --label PREVIEW",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit && tsc --noEmit -p functions",
     "test": "vitest run",
     "test:watch": "vitest",
     "verify:ds2-core-sync": "node scripts/verify-ds2-core-sync.mjs",
-    "icons": "node scripts/gen-icons.mjs",
     "preview": "wrangler pages dev out --port 5048",
     "deploy": "node scripts/deploy.mjs",
     "pull": "node scripts/pull-extractions.mjs",
