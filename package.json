@@ -12,7 +12,6 @@
     "build": "node scripts/build.mjs",
     "build:preview": "node scripts/build.mjs --label PREVIEW",
     "start": "next start",
-    "lint": "eslint",
     "typecheck": "tsc --noEmit && tsc --noEmit -p functions",
     "test": "vitest run",
     "test:watch": "vitest",

@@ -20,9 +20,14 @@ npm run typecheck      # アプリと functions/ の両方
 npm run build          # 製品版: 静的エクスポート + Service Worker（SYNC なし）
 npm run build:preview  # オーナー向けプレビュー版（名前・アイコン・app-variant を付け替える）
 npm run gate:verify    # オーナーゲートが正本と一致し、有効になっているか
+npm run check:public-tree  # 公開してよいものだけが git に入っているか
 npm run preview        # wrangler pages dev（ゲート・Functions・D1 込み）→ §手元で動かす
 npm run pull           # D1 から抽出データを data/extractions/ に落とす（運営者用）
 ```
+
+検査は `npm run typecheck`・`npm test`・`npm run gate:verify`・`npm run check:public-tree` の四つで、
+変更のたびにこの四つを通します（`npm run build` は加えて `ds2-core` の同期とブランディングを検査します）。
+ESLint は入れていないので `npm run lint` はありません。
 
 ## オーナー向けプレビュー版
 
