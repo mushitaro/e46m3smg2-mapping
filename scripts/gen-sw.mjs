@@ -36,7 +36,27 @@ const PRECACHE_EXTENSIONS = new Set(['.html', '.js', '.css', '.woff2', '.webmani
  * only appears in the listing on the second run, which is how it slipped in: the first build has no
  * out/sw.js to enumerate.
  */
-const SKIP_PATTERNS = [/\.map$/, /\/_next\/static\/chunks\/polyfills/, /^\/sw\.js$/];
+const SKIP_PATTERNS = [
+    /\.map$/, /\/_next\/static\/chunks\/polyfills/, /^\/sw\.js$/,
+    // Error pages. Nothing navigates to them by name, and what Pages answers at their paths is not
+    // a 200 anyone promised — and one precache entry that fails is an update that never installs.
+    /^\/404\.html$/, /^\/_not-found\.html$/,
+];
+
+/**
+ * Where to fetch a file that is kept under `rel`.
+ *
+ * Pages answers `/index.html` and `/link-check.html` with a 308 to the extensionless path, and a
+ * redirected response cannot answer a navigation from the cache (the browser rejects it). So a page
+ * is fetched where Pages serves it and stored under its file name — the key the navigation
+ * fallback asks for.
+ */
+function fetchPathOf(rel) {
+    if (rel === '/index.html') return '/';
+    if (rel.endsWith('/index.html')) return rel.slice(0, -'index.html'.length);
+    if (rel.endsWith('.html')) return rel.slice(0, -'.html'.length);
+    return rel;
+}
 
 function walk(dir) {
     const out = [];
@@ -65,14 +85,14 @@ for (const file of files.sort()) {
     const ext = dot === -1 ? '' : rel.slice(dot);
     if (!PRECACHE_EXTENSIONS.has(ext)) continue;
     if (SKIP_PATTERNS.some(p => p.test(rel))) continue;
-    precache.push(rel);
+    precache.push({ key: rel, fetch: fetchPathOf(rel) });
     hash.update(rel).update(readFileSync(file));
 }
 
 // `/` as well as `/index.html`: a navigation request asks for the former and the export writes the
 // latter, and precaching only one of them leaves the offline shell unreachable by the path the
 // browser actually requests.
-if (precache.includes('/index.html') && !precache.includes('/')) precache.unshift('/');
+if (precache.some(e => e.key === '/index.html')) precache.unshift({ key: '/', fetch: '/' });
 
 const buildId = hash.digest('hex').slice(0, 12);
 const template = readFileSync(TEMPLATE, 'utf8');

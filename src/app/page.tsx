@@ -207,7 +207,13 @@ export default function Home() {
     const [definition, setDefinition] = useState<LoadedDefinition | null>(null);
     const [selectedItem, setSelectedItem] = useState<string | null>(null);
     const [notice, setNotice] = useState<string | null>(null);
-    const pwa = usePwa(BUILD_ID);
+    /**
+     * The service worker never swaps builds while the cable is in use: no update check starts, and
+     * UPDATE is not offered, until the link is back to disconnected.
+     */
+    const linkBusy = link.phase !== 'disconnected';
+    const pwa = usePwa(linkBusy);
+    const updateOffered = pwa.updated && !linkBusy;
 
     /** Share state, keyed by the image hash so a different extraction cannot inherit a badge. */
     const [shared, setShared] = useState<Record<string, number>>({});
@@ -766,10 +772,13 @@ export default function Home() {
     }, [workspace, definition, editedImage, imageBase, zbNumber, checksum, sessions]);
 
     const handleReload = useCallback(() => {
-        const busy = link.phase !== 'disconnected' || isDirty(workspace);
+        const busy = linkBusy || isDirty(workspace);
         if (busy && !confirm(t.reloadBusy)) return;
-        pwa.reload();
-    }, [link.phase, workspace, pwa, t]);
+        // UPDATE is only ever offered with the link idle, so taking the new build here cannot swap
+        // the code under a read.
+        if (updateOffered) void pwa.applyUpdate();
+        else pwa.reload();
+    }, [linkBusy, updateOffered, workspace, pwa, t]);
 
     // ── The hub panel: status row, notice, ring, sub-actions. ONE instance, wherever mounted. ─
     const smgInputsPanel = (
@@ -936,10 +945,10 @@ export default function Home() {
                     <button
                         type="button"
                         onClick={handleReload}
-                        title={pwa.updated ? t.updateAvailableHint : t.reloadHint}
-                        className={`${pwa.updated ? 'flex' : 'hidden min-[900px]:flex'} -my-3 shrink-0 items-center py-3 transition-colors ${pwa.updated ? 'animate-pulse text-blue-400 hover:text-blue-300' : 'text-slate-500 hover:text-slate-300'}`}
+                        title={updateOffered ? t.updateAvailableHint : t.reloadHint}
+                        className={`${updateOffered ? 'flex' : 'hidden min-[900px]:flex'} -my-3 shrink-0 items-center py-3 transition-colors ${updateOffered ? 'animate-pulse text-blue-400 hover:text-blue-300' : 'text-slate-500 hover:text-slate-300'}`}
                     >
-                        {pwa.updated
+                        {updateOffered
                             ? <span className="whitespace-nowrap text-[10px] font-bold uppercase tracking-wider">{C.update}</span>
                             : <RefreshCw className="size-5 shrink-0" />}
                     </button>
@@ -1228,7 +1237,7 @@ export default function Home() {
                     onExport={workspace ? onExport : null}
                     onClear={workspace ? onClearWorkspace : null}
                     onReload={handleReload}
-                    updateAvailable={pwa.updated}
+                    updateAvailable={updateOffered}
                     installable={pwa.installable && !pwa.installed}
                     onInstall={() => void pwa.install()}
                     onToggleLang={() => setLang(lang === 'ja' ? 'en' : 'ja')}

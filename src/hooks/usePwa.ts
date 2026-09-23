@@ -8,10 +8,18 @@
  * **Registration** happens after mount, never during render — `navigator` does not exist while
  * Next prerenders this page to static HTML.
  *
- * **Updates are announced, not applied.** The worker is network-first and takes over immediately,
- * so a new build is already live for the next navigation; what this exposes is a flag so the UI can
- * offer a reload. It does NOT reload on its own: a worker that reloads the tab can interrupt a read
- * that is mid-flight, and on this app that means abandoning a two-minute extraction.
+ * **Updates are announced, and applied only when asked.** The worker does not take over on its
+ * own (`sw.template.js`): a new build installs in the background and waits. This hook notices the
+ * waiting worker and sets `updated`; `applyUpdate` — reached only from the UPDATE control, which
+ * the page shows only while nothing is connected — tells it to take over and reloads once it has.
+ * A plain reload is not enough: a same-tab reload does not release the client, so the waiting
+ * worker keeps waiting and the page comes back on the old build (measured in BOOT, whose pattern
+ * this follows).
+ *
+ * **It does not go looking while the link is busy.** A tab left open for hours checks for a new
+ * `sw.js` when it comes back to the foreground — but not while a cable is connected or a read is
+ * running, because an eighteen-minute read is exactly when downloading a new build over a phone
+ * tether is the wrong thing to be doing.
  *
  * **Install** is offered only where the browser says it is possible. `beforeinstallprompt` fires on
  * Android Chrome and desktop Chrome; iOS Safari never fires it and has no API, so the honest
@@ -28,7 +36,7 @@ interface BeforeInstallPromptEvent extends Event {
 export interface PwaState {
     /** The worker is registered and controlling this page. */
     readonly ready: boolean;
-    /** A different build activated while this tab was open. */
+    /** A newer build is installed and waiting for the operator to take it. */
     readonly updated: boolean;
     /** The build id the active worker reports, when it has answered. */
     readonly buildId: string | null;
@@ -41,15 +49,20 @@ export interface PwaState {
 
 export interface PwaApi extends PwaState {
     install(): Promise<'accepted' | 'dismissed' | 'unavailable'>;
+    /** A plain reload. Comes back on the same build if one is waiting. */
     reload(): void;
+    /** Switch to the waiting build, then reload onto it. Only from UPDATE, only while idle. */
+    applyUpdate(): Promise<void>;
 }
 
+/** How long UPDATE waits for the new worker to take over before reloading anyway. */
+const TAKEOVER_TIMEOUT_MS = 5000;
+
 /**
- * @param currentBuildId the SOURCE id inlined into this page's bundle, so the hook can compare it
- *   with what the worker reports and answer "is the server's code different from mine?" rather
- *   than guessing from the fact that some worker activated.
+ * @param busy true while a cable is connected or an operation runs. No update check is started
+ *   while it is true; the page also hides UPDATE for the same span.
  */
-export function usePwa(currentBuildId: string): PwaApi {
+export function usePwa(busy: boolean): PwaApi {
     const [state, setState] = useState<PwaState>({
         ready: false,
         updated: false,
@@ -59,9 +72,9 @@ export function usePwa(currentBuildId: string): PwaApi {
         online: true,
     });
     const promptRef = useRef<BeforeInstallPromptEvent | null>(null);
-    /** Kept in a ref so the message handler never closes over a stale value. */
-    const mine = useRef(currentBuildId);
-    mine.current = currentBuildId;
+    /** Kept in a ref so the visibility handler never closes over a stale value. */
+    const busyRef = useRef(busy);
+    busyRef.current = busy;
 
     useEffect(() => {
         setState(s => ({
@@ -87,99 +100,71 @@ export function usePwa(currentBuildId: string): PwaApi {
         window.addEventListener('beforeinstallprompt', onBeforeInstall);
         window.addEventListener('appinstalled', onInstalled);
 
-        let cancelled = false;
-        if ('serviceWorker' in navigator) {
-            const onMessage = (event: MessageEvent) => {
-                const data = event.data as
-                    { type?: string; buildId?: string; sourceId?: string } | undefined;
-                if (data?.type !== 'sw-activated' && data?.type !== 'sw-build-id') return;
-                setState(s => ({
-                    ...s,
-                    buildId: data.buildId ?? s.buildId,
-                    /**
-                     * The precise condition: the worker was built from a different source than
-                     * this page.
-                     *
-                     * Two wrong versions preceded it. "Only the second activation counts" never
-                     * fired for a returning tab, so a deploy could not reach anybody — the reported
-                     * symptom. "Any activation while a controller existed" fires on a fresh load
-                     * too, because the browser fetches the new worker right after the new page, so
-                     * it offered a reload to someone already on the newest build.
-                     *
-                     * Comparing source ids answers the actual question and answers it in both
-                     * directions — but only on `sw-activated`. The startup `sw-build-id` query is
-                     * answered by whichever worker is active at that instant, and on a FRESH load
-                     * after a deploy that is still the old one while the page itself already has
-                     * the new code from the network: comparing there offered a reload to someone
-                     * on the newest build. Activation is the moment a worker's build becomes the
-                     * one this origin serves, so it is the only moment the comparison means
-                     * anything.
-                     */
-                    updated: data.type === 'sw-activated'
-                        && data.sourceId !== undefined
-                        && data.sourceId !== mine.current
-                        ? true
-                        : s.updated,
-                }));
-            };
-            navigator.serviceWorker.addEventListener('message', onMessage);
-
-            /**
-             * `controllerchange` is the other half. A worker can claim this page without the
-             * message arriving — a different tab's registration, or a browser that activates
-             * before our listener is attached — and the page would then be running stale code
-             * silently.
-             */
-            const onControllerChange = () => {
-                // Ask, rather than assume: the answer is a source-id comparison and only the
-                // worker has the other half.
-                navigator.serviceWorker.controller?.postMessage({ type: 'sw-build-id' });
-            };
-            navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
-
-            /**
-             * And a tab that has been open for hours has to go and LOOK. The browser only checks
-             * for a new `sw.js` on navigation, so a garage session left open across a deploy never
-             * finds out. Checking when the tab comes back to the foreground is cheap and is the
-             * moment a person is about to read the screen.
-             */
-            const onVisible = () => {
-                if (document.visibilityState !== 'visible') return;
-                navigator.serviceWorker.getRegistration().then(r => r?.update()).catch(() => {});
-            };
-            document.addEventListener('visibilitychange', onVisible);
-
-            navigator.serviceWorker.register('/sw.js')
-                .then(() => navigator.serviceWorker.ready)
-                .then(registration => {
-                    if (cancelled) return;
-                    setState(s => ({ ...s, ready: true }));
-                    registration.active?.postMessage({ type: 'sw-build-id' });
-                })
-                .catch(() => {
-                    // A failed registration is not a failed app: everything except offline use
-                    // works without it, so this is recorded rather than surfaced as an error.
-                    if (!cancelled) setState(s => ({ ...s, ready: false }));
-                });
-
-            return () => {
-                cancelled = true;
-                navigator.serviceWorker.removeEventListener('message', onMessage);
-                navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
-                document.removeEventListener('visibilitychange', onVisible);
-                window.removeEventListener('online', onOnline);
-                window.removeEventListener('offline', onOffline);
-                window.removeEventListener('beforeinstallprompt', onBeforeInstall);
-                window.removeEventListener('appinstalled', onInstalled);
-            };
-        }
-
-        return () => {
-            cancelled = true;
+        const removeWindowListeners = () => {
             window.removeEventListener('online', onOnline);
             window.removeEventListener('offline', onOffline);
             window.removeEventListener('beforeinstallprompt', onBeforeInstall);
             window.removeEventListener('appinstalled', onInstalled);
+        };
+
+        if (!('serviceWorker' in navigator)) return removeWindowListeners;
+
+        let cancelled = false;
+        const onMessage = (event: MessageEvent) => {
+            const data = event.data as { type?: string; buildId?: string } | undefined;
+            if (data?.type === 'sw-build-id') setState(s => ({ ...s, buildId: data.buildId ?? s.buildId }));
+        };
+        navigator.serviceWorker.addEventListener('message', onMessage);
+
+        /**
+         * A worker that is installed and waiting means a newer build is ready.
+         *
+         * `controller` is the test for "this is an update, not a first install" — without it every
+         * first visit would announce one. Checked at the moment of the call, not captured, because a
+         * first visit becomes a controlled page moments later.
+         */
+        const announceIfWaiting = (worker: ServiceWorker | null) => {
+            if (!cancelled && worker?.state === 'installed' && navigator.serviceWorker.controller) {
+                setState(s => ({ ...s, updated: true }));
+            }
+        };
+
+        const onVisible = () => {
+            if (document.visibilityState !== 'visible' || busyRef.current) return;
+            navigator.serviceWorker.getRegistration().then(r => r?.update()).catch(() => {});
+        };
+        document.addEventListener('visibilitychange', onVisible);
+
+        navigator.serviceWorker.register('/sw.js')
+            .then(registration => {
+                if (cancelled) return;
+                announceIfWaiting(registration.waiting);
+                registration.addEventListener('updatefound', () => {
+                    const installing = registration.installing;
+                    if (!installing) return;
+                    // Called immediately AND on every transition: listening only for `statechange`
+                    // loses the race whenever the worker finishes installing before this line runs.
+                    announceIfWaiting(installing);
+                    installing.addEventListener('statechange', () => announceIfWaiting(installing));
+                });
+                return navigator.serviceWorker.ready;
+            })
+            .then(registration => {
+                if (cancelled || !registration) return;
+                setState(s => ({ ...s, ready: true }));
+                registration.active?.postMessage({ type: 'sw-build-id' });
+            })
+            .catch(() => {
+                // A failed registration is not a failed app: everything except offline use works
+                // without it, so this is recorded rather than surfaced as an error.
+                if (!cancelled) setState(s => ({ ...s, ready: false }));
+            });
+
+        return () => {
+            cancelled = true;
+            navigator.serviceWorker.removeEventListener('message', onMessage);
+            document.removeEventListener('visibilitychange', onVisible);
+            removeWindowListeners();
         };
     }, []);
 
@@ -196,5 +181,25 @@ export function usePwa(currentBuildId: string): PwaApi {
 
     const reload = useCallback(() => window.location.reload(), []);
 
-    return { ...state, install, reload };
+    const applyUpdate = useCallback(async () => {
+        const registration = await navigator.serviceWorker?.getRegistration().catch(() => undefined);
+        const waiting = registration?.waiting;
+        if (!waiting) { window.location.reload(); return; }
+
+        // Once, however many times `controllerchange` fires: a reload loop on a tool that talks to
+        // hardware would be worse than a stale build. And the reload waits for the new worker to
+        // control the page — reloading first just loads the old build again. If it never takes
+        // over, the operator still asked for a reload and gets one.
+        let reloaded = false;
+        const go = () => {
+            if (reloaded) return;
+            reloaded = true;
+            window.location.reload();
+        };
+        navigator.serviceWorker.addEventListener('controllerchange', go);
+        setTimeout(go, TAKEOVER_TIMEOUT_MS);
+        waiting.postMessage({ type: 'skip-waiting' });
+    }, []);
+
+    return { ...state, install, reload, applyUpdate };
 }
