@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "smg2-drivelogic",
+  "name": "e46m3smg2-mapping-preview",
   "compatibility_date": "2026-08-01",
   "pages_build_output_dir": "out",
   "d1_databases": [
