@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect } from 'react';
-import { X, Download, RefreshCw, Smartphone, Trash2, Languages } from 'lucide-react';
+import { X, Download, RefreshCw, Shield, Smartphone, Trash2, Languages } from 'lucide-react';
 import { C } from '@/lib/chrome';
 import { useLang } from '@/lib/i18n';
 
@@ -34,6 +34,7 @@ export function MobileMenu({
     installable,
     onInstall,
     onToggleLang,
+    privacyHref,
 }: {
     onClose: () => void;
     tabs: readonly { id: string; label: string; enabled: boolean }[];
@@ -48,6 +49,8 @@ export function MobileMenu({
     installable: boolean;
     onInstall: () => void;
     onToggleLang: () => void;
+    /** The preview's privacy section; null on production, which draws no PRIVACY link. */
+    privacyHref: string | null;
 }) {
     const { t } = useLang();
 
@@ -83,6 +86,17 @@ export function MobileMenu({
                 {/* The icon strip at the top IS the desktop header's right-hand cluster. It is the
                     furthest thing from the thumb, which is where a reload belongs. */}
                 <div className="flex h-[44px] flex-none items-center justify-end gap-6 border-b border-slate-900 px-4">
+                    {privacyHref && (
+                        <a
+                            href={privacyHref}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={t.privacyHint}
+                            className="text-slate-500 transition hover:text-slate-300"
+                        >
+                            <Shield className="size-5" />
+                        </a>
+                    )}
                     <button onClick={onToggleLang} title={t.switchLanguage} className="text-slate-500 transition hover:text-slate-300">
                         <Languages className="size-5" />
                     </button>

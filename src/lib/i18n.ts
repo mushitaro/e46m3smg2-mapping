@@ -175,6 +175,28 @@ export interface Catalog {
     reloadBusy: string;
     rawNote: (bytes: string) => string;
     rawBody: string;
+
+    // SYNC and CLOUD — the preview build only
+    /** Hub notice after a read, on a build with no SYNC: what the next act is. */
+    noticeExport: string;
+    syncExpired: string;
+    syncTooLarge: string;
+    syncOffline: string;
+    syncFailed: (why: string) => string;
+    diagQueued: string;
+    cloudNote: (account: string | null) => string;
+    cloudExpired: string;
+    cloudEmpty: string;
+    cloudUnavailable: string;
+    cloudRecordsNote: (pending: number) => string;
+    confirmDeleteCloud: (name: string) => string;
+    confirmDeleteRecord: string;
+    restoreReplacesEdits: string;
+    restored: (cells: number, skipped: number) => string;
+    restoreCorrupt: string;
+    restoreFailed: string;
+    reauthUnsaved: string;
+    privacyHint: string;
 }
 
 const EN: Catalog = {
@@ -189,8 +211,8 @@ const EN: Catalog = {
         'physically possible.',
     noticeProbeUnknown:
         'Which segment and base holds the calibration is not known yet. Reads only.',
-    noticeShare: 'Sends the calibration and how it was read.',
-    noticeShared: k => `Shared ${k} KiB. Re-read to take another copy.`,
+    noticeShare: 'Saves this session to your account: the image, how it was read, and your edits.',
+    noticeShared: k => `Saved ${k} KiB to your account. SYNC again after editing to update it.`,
     noticeSending: 'Compressing the image and the telegram trace.',
     noticeVerified: 'Both passes were byte-identical.',
     ignitionOn: 'Ignition on, engine stopped.',
@@ -278,7 +300,7 @@ const EN: Catalog = {
     shareIdle: 'Sends the calibration and its provenance to D1 for analysis.',
     defErrors: n => `${n} definition error(s) — see Device. Editing is still possible, but the `
         + `flagged items overlap each other's bytes.`,
-    diagSent: (k, id) => `Sent ${k} KiB as ${id}. Pull it with \`npm run pull:diag\`.`,
+    diagSent: (k, id) => `Sent ${k} KiB as ${id}.`,
     diagCopied: k => `Copied ${k} KiB to the clipboard.`,
     diagRefused: 'The browser refused clipboard access. Use Send, or select the log text.',
     crcNote: (s, c) =>
@@ -340,8 +362,40 @@ const EN: Catalog = {
     rawNote: b => `${b} bytes. Neither MS4X definition is written for this length.`,
     rawBody: 'These bytes came off the ECU, but no definition describes an image of this length, '
         + 'so nothing here can be decoded — applying one anyway would put every address somewhere '
-        + 'it was not meant to point, and the numbers would look plausible. Export it, and send it '
-        + 'with SHARE: a truncated dump is still the program area, which is what the disassembly needs.',
+        + 'it was not meant to point, and the numbers would look plausible. Export it: a truncated '
+        + 'dump is still the program area, which is what the disassembly needs.',
+
+    noticeExport: 'EXPORT writes the edited .bin with its checksum corrected, and its manifest.',
+    syncExpired:
+        'The preview sign-in has lapsed. The session is safe on this device — SIGN IN is under '
+        + 'STARTUP › CLOUD, once the cable is disconnected.',
+    syncTooLarge: 'Too large to save: one row holds at most 1.9 MB. EXPORT the .bin instead.',
+    syncOffline: 'No network. The session is safe on this device; SYNC again when online.',
+    syncFailed: why => `Not saved (${why}). The session is safe on this device.`,
+    diagQueued: 'Could not send now. It is kept, and goes with the next record that does.',
+    cloudNote: account => (account
+        ? `Saved to account ${account}. Only that account can see these.`
+        : 'Saved to your preview account. Only you can see these.'),
+    cloudExpired:
+        'The preview sign-in has lapsed. Everything on this device is still here. SIGN IN goes '
+        + 'through m3 and comes back to this page; it is offered while the cable is disconnected.',
+    cloudEmpty: 'Nothing saved yet. SYNC on the hub saves the session in hand.',
+    cloudUnavailable: 'The list could not be read — offline, or the server did not answer.',
+    cloudRecordsNote: pending => 'Filed automatically after every read and every failure, so a '
+        + 'failure can be looked into without anyone having to press anything.'
+        + (pending ? ` ${pending} waiting to be sent.` : ''),
+    confirmDeleteCloud: name => `Delete the cloud copy of ${name}? A copy on this device is not affected.`,
+    confirmDeleteRecord: 'Delete this record from the cloud?',
+    restoreReplacesEdits:
+        'This device already has edits for this image. Replace them with the edits in the cloud copy?',
+    restored: (cells, skipped) => `Restored from the cloud${cells ? ` with ${cells} edited cell(s)` : ''}.`
+        + (skipped ? ` ${skipped} cell(s) did not match this image and were left out.` : ''),
+    restoreCorrupt: 'The cloud copy does not hash to its own SHA-256, so it was not restored.',
+    restoreFailed: 'The cloud copy could not be read. Nothing on this device changed.',
+    reauthUnsaved:
+        'Signing in again leaves this page for m3 and comes back. Your edits are kept on this '
+        + 'device. Go now?',
+    privacyHint: 'Privacy policy — what this preview sends, and why',
 };
 
 const JA: Catalog = {
@@ -356,8 +410,8 @@ const JA: Catalog = {
         '物理的にあり得るかを確認してください。',
     noticeProbeUnknown:
         '較正がどのセグメント／ベースにあるかは未確定です。読み出しのみ行います。',
-    noticeShare: '較正データと、それをどう読んだかを送信します。',
-    noticeShared: k => `${k} KiB を送信しました。もう一部取るには再読取。`,
+    noticeShare: 'このセッション（イメージ、読み取りの記録、編集）をあなたのアカウントに保存します。',
+    noticeShared: k => `${k} KiB をアカウントに保存しました。編集したら、もう一度 SYNC で更新できます。`,
     noticeSending: 'イメージとテレグラムトレースを圧縮しています。',
     noticeVerified: '2 パスがバイト単位で一致しました。',
     ignitionOn: 'イグニッション ON・エンジン停止。',
@@ -444,7 +498,7 @@ const JA: Catalog = {
     shareIdle: '較正データとその来歴を D1 に送り、解析に回します。',
     defErrors: n => `定義エラー ${n} 件 — デバイス画面を参照。編集は可能ですが、`
         + `該当項目どうしがバイトを取り合っています。`,
-    diagSent: (k, id) => `${k} KiB を ${id} として送信しました。\`npm run pull:diag\` で取り出せます。`,
+    diagSent: (k, id) => `${k} KiB を ${id} として送信しました。`,
     diagCopied: k => `${k} KiB をクリップボードにコピーしました。`,
     diagRefused: 'ブラウザがクリップボードを拒否しました。送信を使うか、ログを選択してコピーしてください。',
     crcNote: (s, c) =>
@@ -505,8 +559,37 @@ const JA: Catalog = {
     rawNote: b => `${b} バイト。この長さに対応する MS4X 定義はありません。`,
     rawBody: 'ECU から読み出したバイトですが、この長さのイメージを記述する定義が無いため、ここでは何も'
         + 'デコードできません。無理に当てれば全アドレスが本来と違う位置を指し、しかも値は'
-        + 'それらしく見えてしまいます。EXPORT で保存し、SHARE で送ってください。'
+        + 'それらしく見えてしまいます。EXPORT で保存してください。'
         + '途中で切れたダンプでもプログラム領域は入っており、逆アセンブルに必要なのはそこです。',
+
+    noticeExport: 'EXPORT で、チェックサムを直した編集済みの .bin とマニフェストを書き出します。',
+    syncExpired:
+        'プレビュー版のログインの期限が切れました。セッションはこの端末に残っています。'
+        + 'ケーブルを外すと、STARTUP › CLOUD に SIGN IN が出ます。',
+    syncTooLarge: '大きすぎて保存できません（1 行 1.9 MB まで）。EXPORT で .bin を書き出してください。',
+    syncOffline: 'ネットワークがありません。セッションはこの端末に残っています。オンラインで SYNC してください。',
+    syncFailed: why => `保存できませんでした（${why}）。セッションはこの端末に残っています。`,
+    diagQueued: '今は送れませんでした。保管しておき、次に送れたときに一緒に送ります。',
+    cloudNote: account => (account
+        ? `保存先 アカウント ${account}。このアカウントからだけ見えます。`
+        : '保存先はプレビュー版のあなたのアカウントです。あなたからだけ見えます。'),
+    cloudExpired:
+        'プレビュー版のログインの期限が切れました。この端末のデータはすべて残っています。'
+        + 'SIGN IN は m3 を経由してこのページに戻ります。ケーブルを外している間に表示されます。',
+    cloudEmpty: 'まだ保存したものはありません。ハブの SYNC で、今のセッションを保存できます。',
+    cloudUnavailable: '一覧を読めませんでした。オフラインか、サーバが応答していません。',
+    cloudRecordsNote: pending => '読み取りのたび、失敗のたびに自動で記録します。'
+        + 'ボタンを押さなくても、失敗の原因を後から調べられます。'
+        + (pending ? `送信待ち ${pending} 件。` : ''),
+    confirmDeleteCloud: name => `${name} のクラウドの控えを削除しますか？この端末にある控えは消えません。`,
+    confirmDeleteRecord: 'この記録をクラウドから削除しますか？',
+    restoreReplacesEdits: 'この端末には、このイメージの編集がすでにあります。クラウドの控えの編集で置き換えますか？',
+    restored: (cells, skipped) => `クラウドから復元しました${cells ? `（編集 ${cells} セル）` : ''}。`
+        + (skipped ? `このイメージと合わない ${skipped} セルは含めていません。` : ''),
+    restoreCorrupt: 'クラウドの控えが自分の SHA-256 と一致しないため、復元しませんでした。',
+    restoreFailed: 'クラウドの控えを読めませんでした。この端末では何も変わっていません。',
+    reauthUnsaved: 'ログインし直すと、m3 を経由してこのページに戻ります。編集はこの端末に残ります。進みますか？',
+    privacyHint: 'プライバシーポリシー — このプレビュー版が送るものと、その理由',
 };
 
 const STRINGS: Record<Lang, Catalog> = { ja: JA, en: EN };

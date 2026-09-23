@@ -1,10 +1,18 @@
 /**
- * Handing an extraction up to D1.
+ * SYNC: a session's cloud copy, in the owner's own account.
  *
- * The point of this path is that a phone in a garage can produce a 24 KiB calibration and have it
- * land somewhere it can be analysed, without a cable to a laptop, an email attachment, or a file
- * manager. What gets uploaded is the image plus everything needed to judge it later: how it was
- * read, how the read went, which car it came from, and whether it was verified.
+ * The point of this path is that a phone in a garage can produce a calibration and have it kept
+ * somewhere it survives the phone, and open it again on a laptop — without a cable, an email
+ * attachment or a file manager. What is saved is the image as it came off the car plus everything
+ * needed to judge it later (how it was read, how the read went, which car, whether it was
+ * verified) and the edits made to it since.
+ *
+ * **Whose it is.** Requests are same-origin and carry the session cookie the owner gate set when
+ * the owner arrived from m3; the server files every row under that account and shows each owner
+ * only their own. There is no token and nothing to configure (`owner-sync.ts`).
+ *
+ * **Preview only.** Production is local-only and its privacy text says so: every function here
+ * that makes a request returns without one unless `isPreviewBuild()`.
  *
  * **Practice rows are marked at the source.** A simulated read produces plausible bytes; a row that
  * does not say so is indistinguishable from a real dump once the session is closed. The flag rides
@@ -13,7 +21,11 @@
 
 import type { Workspace } from './workspace';
 import { changedCells } from './edits';
-import { APP_VERSION } from './version';
+import { api, gunzipB64, isPreviewBuild } from './owner-sync';
+import { APP_VERSION, BUILD_ID } from './version';
+
+/** Which build wrote a row: the hand-bumped version and the source hash the page runs. */
+export const APP_BUILD = `${APP_VERSION} ${BUILD_ID}`;
 
 export interface SyncPayload {
     id: string;
@@ -42,17 +54,17 @@ export interface SyncPayload {
 
 export interface SyncResult {
     ok: boolean;
+    /** The row's id in the cloud — the one the server kept, which for a re-save is the first one. */
     id: string;
     /** Bytes actually sent, so a slow upload on a phone can be reported as a size and not a mood. */
     uploadedBytes: number;
+    /** 401: the preview session lapsed. The work is still here; signing in again is offered. */
+    expired?: boolean;
+    /** 413: more than a row can hold. */
+    tooLarge?: boolean;
+    /** No request reached the server — offline, or not a preview build. */
+    notSent?: boolean;
     error?: string;
-}
-
-export function isSyncConfigured(): boolean {
-    // With no token and no base this still works against a same-origin Pages deployment, which is
-    // the normal case. The check is for whether a sync UI should be offered at all, and it should:
-    // the deployment supplies the endpoint.
-    return typeof fetch !== 'undefined';
 }
 
 /** gzip, because a 24 KiB calibration is mostly structure and compresses to a fraction of itself. */
@@ -73,16 +85,6 @@ export async function gzipToBase64(bytes: Uint8Array): Promise<string> {
         binary += String.fromCharCode(...buffer.subarray(i, i + CHUNK));
     }
     return btoa(binary);
-}
-
-/** Inverse of `gzipToBase64`, for anything that reads a row back in the browser. */
-export async function base64ToUngzipped(b64: string): Promise<Uint8Array> {
-    const binary = atob(b64);
-    const packed = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) packed[i] = binary.charCodeAt(i);
-    const stream = new Blob([packed.buffer as ArrayBuffer]).stream()
-        .pipeThrough(new DecompressionStream('gzip'));
-    return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 
 /**
@@ -117,6 +119,11 @@ export async function buildPayload(
          */
         verifiedReread: boolean | null;
         /**
+         * The session this is the cloud copy of. The local session id, so saving the same session
+         * again updates its row instead of adding one.
+         */
+        id: string;
+        /**
          * Which route the bytes came in over: 'serial', 'usb', 'practice' or 'file'.
          *
          * The workspace's own origin cannot answer this — it only knows "vehicle" — and the
@@ -134,12 +141,12 @@ export async function buildPayload(
         // An opaque id, not the image hash. The hash is the same for every stock car, so as an id
         // it made two owners' identical calibrations collide; the server keeps one row per owner
         // per image instead (UNIQUE(owner, sha256)), so a retry still cannot duplicate a row.
-        id: crypto.randomUUID(),
+        id: extras.id,
         createdAt: workspace.loadedAt,
         label: extras.label,
         transport: extras.transport,
         practice: origin.kind === 'practice',
-        appBuild: APP_VERSION,
+        appBuild: APP_BUILD,
         // 'raw' when no definition is written for this length — a full read that died partway.
         // The column keeps it apart from a complete image so a query for full dumps does not
         // silently include truncated ones.
@@ -180,35 +187,79 @@ export async function buildPayload(
     };
 }
 
-export async function uploadExtraction(payload: SyncPayload): Promise<SyncResult> {
-    const body = JSON.stringify(payload);
-    try {
-        // Same origin, carrying the session cookie the gate set. No token: the owner is whoever
-        // the gate says this browser is.
-        const response = await fetch('/api/extractions', {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: { 'content-type': 'application/json' },
-            body,
-        });
-        if (!response.ok) {
-            const detail = await response.text().catch(() => '');
-            return {
-                ok: false,
-                id: payload.id,
-                uploadedBytes: body.length,
-                error: `HTTP ${response.status}${detail ? `: ${detail.slice(0, 200)}` : ''}`,
-            };
-        }
-        return { ok: true, id: payload.id, uploadedBytes: body.length };
-    } catch (error) {
-        // A phone in a garage is the normal place for this to fail. Say that it was the network and
-        // that the bytes are still here, rather than implying the read was lost.
-        return {
-            ok: false,
-            id: payload.id,
-            uploadedBytes: body.length,
-            error: `${(error as Error).message} — the extraction is still loaded; export it or retry.`,
-        };
-    }
+/** Save (or save again) a session's cloud copy. Never throws; says why when it did not work. */
+export async function saveExtraction(payload: SyncPayload): Promise<SyncResult> {
+    if (!isPreviewBuild()) return { ok: false, id: payload.id, uploadedBytes: 0, notSent: true };
+    const bytes = JSON.stringify(payload).length;
+    const result = await api<{ id?: string; error?: string }>('/api/extractions', { method: 'POST', body: payload });
+    if (result.ok) return { ok: true, id: result.data?.id ?? payload.id, uploadedBytes: bytes };
+    return {
+        ok: false,
+        id: payload.id,
+        uploadedBytes: bytes,
+        expired: result.expired,
+        tooLarge: result.tooLarge,
+        // Status 0 is the network, not the server: a phone in a garage is the normal place for it.
+        notSent: result.status === 0,
+        error: result.status === 0 ? 'offline' : `HTTP ${result.status}${result.data?.error ? `: ${result.data.error}` : ''}`,
+    };
+}
+
+/** A row of the owner's cloud list: everything but the bytes. */
+export interface CloudSession {
+    readonly id: string;
+    readonly created_at: number;
+    readonly synced_at: number;
+    readonly label: string | null;
+    readonly transport: string;
+    readonly practice: number;
+    readonly variant: string;
+    readonly byte_length: number;
+    readonly sha256: string;
+    readonly segment: number | null;
+    readonly base_address: number | null;
+    readonly zb_number: string | null;
+    readonly chunk_size: number | null;
+    readonly exchanges: number | null;
+    readonly retries: number | null;
+    readonly elapsed_ms: number | null;
+    readonly verified_reread: number | null;
+    readonly has_edits: number;
+}
+
+/** One row, bytes included. */
+export interface CloudSessionFull extends CloudSession {
+    readonly image_gz_b64: string;
+    readonly edits_json: string | null;
+    readonly log_text: string | null;
+}
+
+/** A list, or null when it could not be read — and whether that was because the session lapsed. */
+export interface CloudList<T> {
+    readonly rows: readonly T[] | null;
+    readonly expired: boolean;
+}
+
+/** The owner's saved sessions, newest first, practice ones included and marked. */
+export async function listCloudSessions(): Promise<CloudList<CloudSession>> {
+    if (!isPreviewBuild()) return { rows: null, expired: false };
+    const r = await api<{ extractions?: CloudSession[] }>('/api/extractions?practice=1&limit=100');
+    return { rows: r.ok ? r.data?.extractions ?? [] : null, expired: r.expired };
+}
+
+export async function fetchCloudSession(id: string): Promise<{ row: CloudSessionFull | null; expired: boolean }> {
+    if (!isPreviewBuild()) return { row: null, expired: false };
+    const r = await api<{ extraction?: CloudSessionFull }>(`/api/extractions/${encodeURIComponent(id)}`);
+    return { row: r.ok ? r.data?.extraction ?? null : null, expired: r.expired };
+}
+
+export async function deleteCloudSession(id: string): Promise<{ ok: boolean; expired: boolean }> {
+    if (!isPreviewBuild()) return { ok: false, expired: false };
+    const r = await api(`/api/extractions/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    return { ok: r.ok, expired: r.expired };
+}
+
+/** The image a cloud row carries. The caller checks it hashes to the row's `sha256`. */
+export function imageOf(row: CloudSessionFull): Promise<Uint8Array> {
+    return gunzipB64(row.image_gz_b64);
 }

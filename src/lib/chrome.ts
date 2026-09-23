@@ -49,7 +49,8 @@ export const C = {
     hubProbing: 'PROBING',
     hubRead: 'READ',
     hubReading: 'READING',
-    hubShare: 'SHARE',
+    /** Saves the session to the owner's account. Preview only; production's hub has no such face. */
+    hubSync: 'SYNC',
     hubSending: 'SENDING',
     hubReread: 'RE-READ',
 
@@ -113,7 +114,9 @@ export const C = {
     vMismatch: 'MISMATCH',
     vPracticeBytes: 'PRACTICE BYTES',
     vNoChecksum: 'NO CHECKSUM',
-    vInD1: 'IN D1',
+    vSynced: 'SYNCED',
+    vOk: 'OK',
+    vFailed: 'FAILED',
     vAll: 'ALL',
     vPartial: 'PARTIAL',
     vUnverified: 'UNVERIFIED',
@@ -155,6 +158,12 @@ export const C = {
 
     // ── SESSIONS: the record of every image this tool has held. ──
     sessions: 'SESSIONS',
+    // ── CLOUD: what the owner has saved with SYNC, and the records filed on their own. Preview only.
+    cloud: 'CLOUD',
+    cloudRecords: 'RECORDS',
+    bRestore: 'RESTORE',
+    bDelete: 'DELETE',
+    bSignIn: 'SIGN IN',
     originVehicle: 'VEHICLE',
     originPractice: 'PRACTICE',
     bRename: 'RENAME',

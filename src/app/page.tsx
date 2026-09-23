@@ -33,6 +33,7 @@ import {
     Radio,
     RefreshCw,
     SendHorizontal,
+    Shield,
     Smartphone,
     Square,
     Trash2,
@@ -68,6 +69,7 @@ import { CodeListing } from '@/components/code/CodeListing';
 import { CodeInfo } from '@/components/code/CodeInfo';
 import { buildCodeModel } from '@/lib/code/model';
 import { SessionList } from '@/components/SessionList';
+import { CloudPanel } from '@/components/CloudPanel';
 import { FlashDialog } from '@/components/FlashDialog';
 import { calibrationSector, type FlashPlan } from '@tsunagi/ds2-smg2-write';
 import {
@@ -102,10 +104,21 @@ import { useSplitGraph, useWideLayout } from '@/hooks/useWideLayout';
 import {
     buildPayload,
     CHECKSUM_XDF_ADDRESS,
+    fetchCloudSession,
+    imageOf,
     readStoredChecksum,
-    uploadExtraction,
+    saveExtraction,
+    type CloudSession,
+    type CloudSessionFull,
 } from '@/lib/sync';
-import { renderDiagnostic, uploadDiagnostic, type DiagnosticKind } from '@/lib/diagnostics';
+import {
+    recordDiagnostic, renderDiagnostic, sendDiagnostic, type CloudDiagnostic, type DiagnosticKind,
+} from '@/lib/diagnostics';
+import { editsFromShared, parseSharedEdits } from '@/lib/cloudRestore';
+import { privacyUrl } from '@/lib/links';
+import { reauthHref } from '@/lib/owner-sync';
+import { usePreviewBuild } from '@/lib/variant';
+import { useCloud } from '@/hooks/useCloud';
 import {
     describeUnknownLength,
     loadDefinition,
@@ -135,6 +148,8 @@ import {
     editedCellCount,
     zbFromImage,
     isPractice,
+    sha256Hex,
+    type ImageOrigin,
     type Workspace,
 } from '@/lib/workspace';
 
@@ -214,6 +229,16 @@ export default function Home() {
     const linkBusy = link.phase !== 'disconnected';
     const pwa = usePwa(linkBusy);
     const updateOffered = pwa.updated && !linkBusy;
+
+    /**
+     * The owner preview, or not. Everything SYNC — the hub face, SEND, the CLOUD list, the records
+     * filed on their own, the status poll — is drawn and run only when this is true, and a
+     * production build (no `app-variant`) makes no request to the gate or the API at all.
+     */
+    const preview = usePreviewBuild();
+    const cloud = useCloud(preview);
+    /** The CLOUD row being restored or deleted. */
+    const [cloudBusy, setCloudBusy] = useState<string | null>(null);
 
     /** Share state, keyed by the image hash so a different extraction cannot inherit a badge. */
     const [shared, setShared] = useState<Record<string, number>>({});
@@ -365,6 +390,8 @@ export default function Home() {
                 ? readStoredChecksum(workspace.original, definition.definition.fileOffsetOf(CHECKSUM_XDF_ADDRESS))
                 : null;
             const payload = await buildPayload(workspace, {
+                // The local session's id: saving the same session again updates its row.
+                id: sessions.find(s => s.sha256 === workspace.sha256)?.id ?? crypto.randomUUID(),
                 label: null,
                 checksumStored,
                 zbNumber: zbNumber || null,
@@ -373,15 +400,23 @@ export default function Home() {
                 verifiedReread: workspace.origin.kind === 'file' ? null : link.verifiedByReread,
                 transport: workspace.origin.kind === 'file' ? 'file' : (link.transport ?? 'unknown'),
             });
-            const result = await uploadExtraction(payload);
-            if (!result.ok) { setShareError(result.error ?? 'upload failed'); return; }
+            const result = await saveExtraction(payload);
+            if (!result.ok) {
+                if (result.expired) cloud.markExpired();
+                setShareError(result.expired ? t.syncExpired
+                    : result.tooLarge ? t.syncTooLarge
+                    : result.notSent ? t.syncOffline
+                    : t.syncFailed(result.error ?? 'unknown'));
+                return;
+            }
             setShared(s => ({ ...s, [workspace.sha256]: result.uploadedBytes }));
+            void cloud.refresh();
         } catch (error) {
-            setShareError((error as Error).message);
+            setShareError(t.syncFailed((error as Error).message));
         } finally {
             setSharing(false);
         }
-    }, [workspace, sharing, definition, link.manufacturerData, link.log, link.verifiedByReread, link.transport, zbNumber]);
+    }, [workspace, sharing, definition, link.manufacturerData, link.log, link.verifiedByReread, link.transport, zbNumber, sessions, cloud, t]);
 
     /** Everything a report needs, assembled from the live link state. */
     const buildDiagnostic = useCallback((kind: DiagnosticKind) => ({
@@ -409,14 +444,49 @@ export default function Home() {
         setDiagNote(null);
         try {
             const kind: DiagnosticKind = link.lastFailure?.kind ?? (link.lastRead ? 'read' : 'manual');
-            const result = await uploadDiagnostic(buildDiagnostic(kind));
+            const result = await sendDiagnostic(buildDiagnostic(kind));
             setDiagNote(result.ok
                 ? t.diagSent((result.uploadedBytes / 1024).toFixed(1), result.id.slice(0, 8))
-                : (result.error ?? 'upload failed'));
+                : result.queued ? t.diagQueued : t.syncFailed(result.error ?? 'unknown'));
+            if (result.ok) void cloud.refresh();
         } finally {
             setDiagBusy(false);
         }
-    }, [diagBusy, link.lastFailure, link.lastRead, buildDiagnostic, t]);
+    }, [diagBusy, link.lastFailure, link.lastRead, buildDiagnostic, t, cloud]);
+
+    /**
+     * Records file themselves: once after every read that finishes, and once after every connect,
+     * probe or read that fails — the moment the link leaves a busy phase. Nobody presses SEND in a
+     * garage with the engine off, and a failure is only worth recording at the moment it happens.
+     *
+     * Keyed on the phase TRANSITION rather than on `lastFailure` alone, so a failure is filed once
+     * and a later success is not mistaken for it (`lastFailure` outlives the operation it describes).
+     * A read the operator stopped files nothing: a stop is a decision, not a fault. Silent and
+     * best-effort (`recordDiagnostic`): nothing here can fail the operation it describes.
+     */
+    const diagnosticOf = useRef(buildDiagnostic);
+    diagnosticOf.current = buildDiagnostic;
+    const phaseBefore = useRef(link.phase);
+    const failureFiled = useRef<number | null>(null);
+    const readFiled = useRef(link.lastRead);
+    useEffect(() => {
+        const was = phaseBefore.current;
+        phaseBefore.current = link.phase;
+        if (was === link.phase || (was !== 'connecting' && was !== 'probing' && was !== 'reading')) return;
+        const failure = link.lastFailure && link.lastFailure.at !== failureFiled.current ? link.lastFailure : null;
+        if (failure) failureFiled.current = failure.at;
+        const read = was === 'reading' && link.lastRead !== readFiled.current ? link.lastRead : null;
+        readFiled.current = link.lastRead;
+        if (!preview || (!failure && !read)) return;
+        const input = diagnosticOf.current(failure?.kind ?? 'read');
+        void (async () => {
+            // The image this read produced, by its own hash — the workspace is adopted after this
+            // runs, so its hash would still be the previous image's.
+            const extractionSha = !failure && read ? await sha256Hex(read.bytes).catch(() => null) : null;
+            await recordDiagnostic({ ...input, ok: !failure, error: failure?.message ?? null, extractionSha });
+            void cloud.refresh();
+        })();
+    }, [preview, link.phase, link.lastFailure, link.lastRead, cloud]);
 
     const onCopyDiagnostic = useCallback(async () => {
         const text = renderDiagnostic(buildDiagnostic(link.lastFailure?.kind ?? 'manual'));
@@ -685,7 +755,7 @@ export default function Home() {
         if (!wide) setTreeCollapsed(true);
     }, [wide]);
 
-    const hub = hubConfig(link, workspace, onRead, share, zbNumber, t, scope, verify);
+    const hub = hubConfig(link, workspace, onRead, share, zbNumber, t, scope, verify, preview);
     const errors = definition?.findings.filter(f => f.severity === 'error') ?? [];
     const hardware = hardwareNumberOf(link.manufacturerData);
     const spaceText = link.addressSpace
@@ -715,6 +785,77 @@ export default function Home() {
         await renameSession(session.id, label);
         setSessions(await listSessions());
     }, []);
+
+    /**
+     * RESTORE: a cloud copy back into SESSIONS, edits included.
+     *
+     * The bytes are checked against the row's own SHA-256 before anything is written — a copy that
+     * does not hash to itself is not restored. Edits are replayed cell by cell onto those bytes
+     * (`editsFromShared`) and saved where the page restores edits from; if this device already has
+     * edits for the image, the operator chooses. An image this device already holds is reopened
+     * from SESSIONS, so its local record (how it was read, over which cable) is kept.
+     */
+    const onRestoreCloud = useCallback(async (row: CloudSession) => {
+        if (cloudBusy) return;
+        setCloudBusy(row.id);
+        try {
+            const { row: full, expired } = await fetchCloudSession(row.id);
+            if (expired) { cloud.markExpired(); setNotice(t.syncExpired); return; }
+            if (!full) { setNotice(t.restoreFailed); return; }
+            const bytes = await imageOf(full);
+            if (await sha256Hex(bytes) !== full.sha256) { setNotice(t.restoreCorrupt); return; }
+
+            const variant = variantForLength(bytes.length);
+            const shared = parseSharedEdits(full.edits_json);
+            let cells = 0;
+            let skipped = 0;
+            if (shared.length && variant) {
+                const local = await loadEdits(full.sha256);
+                if (!local?.length || confirm(t.restoreReplacesEdits)) {
+                    const loaded = await loadDefinition(variant);
+                    const result = editsFromShared(loaded.definition, bytes, shared);
+                    await saveEdits(full.sha256, result.edits);
+                    cells = result.applied;
+                    skipped = result.skipped;
+                }
+            }
+            // Re-read the edits even if the same image is open now: the saved set just changed.
+            restoredFor.current = null;
+            const existing = sessions.find(s => s.sha256 === full.sha256);
+            const held = existing ? await loadSessionBytes(existing.sha256) : null;
+            await adoptImage(held ?? bytes, existing && held ? existing.origin : cloudOrigin(full, bytes));
+            setNotice(t.restored(cells, skipped));
+        } catch {
+            setNotice(t.restoreFailed);
+        } finally {
+            setCloudBusy(null);
+        }
+    }, [cloudBusy, cloud, sessions, adoptImage, t]);
+
+    const onDeleteCloudSession = useCallback(async (row: CloudSession) => {
+        if (cloudBusy || !confirm(t.confirmDeleteCloud(row.label ?? row.sha256.slice(0, 12)))) return;
+        setCloudBusy(row.id);
+        try { await cloud.deleteSession(row.id); } finally { setCloudBusy(null); }
+    }, [cloudBusy, cloud, t]);
+
+    const onDeleteCloudDiagnostic = useCallback(async (row: CloudDiagnostic) => {
+        if (cloudBusy || !confirm(t.confirmDeleteRecord)) return;
+        setCloudBusy(row.id);
+        try { await cloud.deleteDiagnostic(row.id); } finally { setCloudBusy(null); }
+    }, [cloudBusy, cloud, t]);
+
+    /**
+     * SIGN IN, when the preview session has lapsed — offered only when it is safe to leave the page:
+     * online (an offline "expired" is not knowable, and m3 would not load), the link disconnected,
+     * nothing saving or restoring. It is a same-tab trip through m3 and back, because m3 only sees
+     * its own cookie on a top-level navigation.
+     */
+    const reauthOffered = preview && cloud.gate === 'expired' && pwa.online && !linkBusy
+        && !sharing && cloudBusy === null;
+    const onReauth = useCallback(() => {
+        if (isDirty(workspace) && !confirm(t.reauthUnsaved)) return;
+        window.location.assign(reauthHref());
+    }, [workspace, t]);
 
     /**
      * What a write would be asked to do, derived rather than stored.
@@ -921,6 +1062,19 @@ export default function Home() {
                             <span className="hidden min-[900px]:inline">{C.offline}</span>
                         </span>
                     )}
+                    {/* PRIVACY leads the cluster, as it does in every M tool. Preview only: it is the
+                        preview's section of the policy, the part that covers what SYNC sends. */}
+                    {preview && (
+                        <a
+                            href={privacyUrl(lang)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={t.privacyHint}
+                            className="hidden text-slate-500 transition-colors hover:text-slate-300 min-[900px]:block"
+                        >
+                            <Shield className="size-5" />
+                        </a>
+                    )}
                     <button
                         type="button"
                         onClick={() => setLang(lang === 'ja' ? 'en' : 'ja')}
@@ -1033,6 +1187,18 @@ export default function Home() {
                                     onOpenSession={s => void onOpenSession(s)}
                                     onDeleteSession={s => void onDeleteSession(s)}
                                     onRenameSession={(s, label) => void onRenameSession(s, label)}
+                                    canSend={preview}
+                                    cloudPanel={preview ? (
+                                        <CloudPanel
+                                            cloud={cloud}
+                                            busyId={cloudBusy}
+                                            canRestore={!linkBusy}
+                                            reauth={reauthOffered ? onReauth : null}
+                                            onRestore={row => void onRestoreCloud(row)}
+                                            onDeleteSession={row => void onDeleteCloudSession(row)}
+                                            onDeleteDiagnostic={row => void onDeleteCloudDiagnostic(row)}
+                                        />
+                                    ) : null}
                                 />
                             </div>
                         )}
@@ -1241,6 +1407,7 @@ export default function Home() {
                     installable={pwa.installable && !pwa.installed}
                     onInstall={() => void pwa.install()}
                     onToggleLang={() => setLang(lang === 'ja' ? 'en' : 'ja')}
+                    privacyHref={preview ? privacyUrl(lang) : null}
                 />
             )}
 
@@ -1254,6 +1421,32 @@ export default function Home() {
             )}
         </main>
     );
+}
+
+/**
+ * Where a restored image says it came from.
+ *
+ * Practice rows stay practice: invented bytes must keep their badge wherever they travel, and the
+ * row's own read statistics are what the practice origin records. Anything else is named for what
+ * it now is on this device — a copy from the cloud — rather than dressed as a vehicle read with a
+ * probe result this device never made.
+ */
+function cloudOrigin(row: CloudSessionFull, bytes: Uint8Array): ImageOrigin {
+    if (row.practice) {
+        return {
+            kind: 'practice',
+            read: {
+                bytes,
+                baseAddress: row.base_address ?? 0,
+                segment: row.segment ?? 0,
+                chunkSize: row.chunk_size ?? 0,
+                exchanges: row.exchanges ?? 0,
+                retries: row.retries ?? 0,
+                elapsedMs: row.elapsed_ms ?? 0,
+            },
+        };
+    }
+    return { kind: 'file', fileName: `CLOUD ${row.label ?? row.sha256.slice(0, 12)}`, lastModified: row.created_at };
 }
 
 /** The definition's own display radix. 3 = hexadecimal, and it marks the bitfields. */
@@ -1276,6 +1469,8 @@ function hubConfig(
     t: Catalog,
     scope: ReadScope,
     verify: boolean,
+    /** SYNC exists only on the preview; production goes from READ straight to EXPORT and RE-READ. */
+    canSync: boolean,
 ): HubConfig {
     if (link.phase === 'connecting') {
         return { label: C.hubLinking, Icon: Loader2, tone: 'connecting', disabled: true, spin: true };
@@ -1332,7 +1527,13 @@ function hubConfig(
             noticeKind: link.error ? 'error' : 'caution',
         };
     }
-    /** SHARE is a hub face, not a side button: if a step belongs to the main sequence it belongs
+    if (!canSync) {
+        return {
+            label: C.hubReread, Icon: RefreshCw, tone: 'idle', onClick: onRead,
+            notice: t.noticeExport, noticeKind: 'info',
+        };
+    }
+    /** SYNC is a hub face, not a side button: if a step belongs to the main sequence it belongs
      *  on the hub, even at five faces. */
     if (share.busy) {
         return { label: C.hubSending, Icon: Loader2, tone: 'busy', disabled: true, spin: true,
@@ -1340,7 +1541,7 @@ function hubConfig(
     }
     if (!share.uploaded) {
         return {
-            label: C.hubShare,
+            label: C.hubSync,
             Icon: UploadCloud,
             tone: 'ready',
             onClick: share.onShare,
@@ -1378,6 +1579,8 @@ function StartupPane({
     onOpenSession,
     onDeleteSession,
     onRenameSession,
+    canSend,
+    cloudPanel,
 }: {
     link: ReturnType<typeof useSmg2Link>;
     workspace: Workspace | null;
@@ -1394,6 +1597,10 @@ function StartupPane({
     onOpenSession: (session: SessionRecord) => void;
     onDeleteSession: (session: SessionRecord) => void;
     onRenameSession: (session: SessionRecord, label: string) => void;
+    /** SEND exists on the preview only; COPY works everywhere. */
+    canSend: boolean;
+    /** What this owner has saved, beside what this device holds. Null off the preview. */
+    cloudPanel: React.ReactNode;
 }) {
     const { t } = useLang();
     const [manualSeg, setManualSeg] = useState('00');
@@ -1413,6 +1620,7 @@ function StartupPane({
                     onRename={onRenameSession}
                 />
             </Section>
+            {cloudPanel}
             <Section
                 title={C.secConnection}
                 note={link.practice ? t.practiceNote : t.connectionNote}
@@ -1551,7 +1759,7 @@ function StartupPane({
                             {isPractice(workspace) && <Pill tone="secondary">{C.vPracticeBytes}</Pill>}
                             {checksum && <Pill tone={checksum.ok ? 'ok' : 'caution'}>{checksum.ok ? C.vCrcOk : C.vCrcBad}</Pill>}
                             {definition && <Pill tone="neutral">{workspace.variant}</Pill>}
-                            {share.uploaded && <Pill tone="ok">{C.vInD1}</Pill>}
+                            {share.uploaded && <Pill tone="ok">{C.vSynced}</Pill>}
                         </div>
                     </div>
                 )}
@@ -1579,7 +1787,7 @@ function StartupPane({
                 </Section>
             )}
 
-            <LogSection link={link} busy={diag.busy} note={diag.note} onSend={diag.onSend} onCopy={diag.onCopy} />
+            <LogSection link={link} busy={diag.busy} note={diag.note} onSend={canSend ? diag.onSend : null} onCopy={diag.onCopy} />
         </Pane>
     );
 }
@@ -1623,7 +1831,7 @@ function LogSection({
     link: ReturnType<typeof useSmg2Link>;
     busy: boolean;
     note: string | null;
-    onSend: () => void;
+    onSend: (() => void) | null;
     onCopy: () => void;
 }) {
     const { t } = useLang();
@@ -1633,14 +1841,16 @@ function LogSection({
             count={link.log.length}
             actions={
                 <>
-                    <TextButton
-                        Icon={busy ? Loader2 : SendHorizontal}
-                        tone={link.lastFailure ? 'danger' : 'primary'}
-                        disabled={busy || link.log.length === 0}
-                        onClick={onSend}
-                    >
-                        {C.bSend}
-                    </TextButton>
+                    {onSend && (
+                        <TextButton
+                            Icon={busy ? Loader2 : SendHorizontal}
+                            tone={link.lastFailure ? 'danger' : 'primary'}
+                            disabled={busy || link.log.length === 0}
+                            onClick={onSend}
+                        >
+                            {C.bSend}
+                        </TextButton>
+                    )}
                     <TextButton Icon={ClipboardCopy} tone="neutral" disabled={link.log.length === 0} onClick={onCopy}>
                         {C.bCopy}
                     </TextButton>
