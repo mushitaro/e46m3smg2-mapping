@@ -1,7 +1,11 @@
-# SMG II /// DRIVELOGIC
+# E46M3SMG2 /// MAPPING
 
-E46 M3 の SMG II（DS2 `0x32`）を読み、マップを書くツール。ブラウザのみ、サーバ無し。
+E46 M3 の SMG II（DS2 `0x32`）を読み、マップを書くツール。
 Next.js 16 / React 19 / Tailwind v4、`output: 'export'`。dev は 5047（`wrangler pages dev` は 5048）。
+製品版（`npm run build`）はブラウザだけで動き、どこにも送らない。オーナー向けプレビュー版
+（`npm run build:preview`、Pages プロジェクト `e46m3smg2-mapping-preview`）には
+Pages Functions（`functions/`）、オリジン全体を覆うオーナーゲート（`functions/_middleware.ts`）、
+D1（`smg2-tuner-runs`、binding `RUNS_DB`、`migrations/`）がある。
 
 ## 参照するスキル
 
@@ -23,3 +27,11 @@ Next.js 16 / React 19 / Tailwind v4、`output: 'export'`。dev は 5047（`wrang
 - `scripts/deploy.mjs` は `out/sw.js` の `SOURCE_ID` が現在のソースと一致しなければ拒む。
   この砦を迂回しない。
 - `src/components/ui.tsx` がこの系で最も揃ったプリミティブ集。新しい部品はここに足す。
+- `functions/_owner-gate/*` と `src/lib/owner-sync.ts` は tsunagi-m3 の `tools/owner-gate` の
+  **バイト単位の複製**で、ここでは決して編集しない。直すのは正本の側で、直したら複製し直して
+  `npm run gate:verify` で一致を確かめる。
+- `/api/*` のクエリはすべてオーナーで絞る（`owner = ?`）。オーナーはゲートが渡したもの
+  （`ownerOf(context.data)`）だけから取り、リクエストの中身からは取らない。
+- デプロイは `npm run deploy` だけ。`wrangler pages deploy` を直接叩かない。
+- `public/factory/`（BMW の工場較正）と `public/xdf/`（第三者の XDF）は手元にだけ置くファイルで、
+  git に入れない（`.gitignore` 済み、`npm run check:public-tree` とデプロイの砦が検査する）。
