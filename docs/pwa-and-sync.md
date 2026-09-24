@@ -61,9 +61,23 @@ Android は USB デバイスの許可を**訪問ごと**に求めます。CONNEC
 
 ## SYNC と D1（プレビュー版だけ）
 
-製品版（`app-variant` が空）は**同期の要求を1本も出しません**。`src/lib/owner-sync.ts`
-（tsunagi-m3 `tools/owner-gate/client` の複製。`gate:verify` が一致を確かめる）の `isPreviewBuild()` が
-偽なら、`sync.ts`・`diagnostics.ts`・`useCloud` は要求を作る前に戻ります。
+製品版（`app-variant` が空）は**同期の要求を1本も出しません**。プレビュー版も、**初回の告知が確認されるまでは
+出しません**。`sync.ts`・`diagnostics.ts`・`useCloud` は要求を作る前に `syncAllowed()`（`src/lib/previewNotice.ts`）を
+確かめて、偽なら戻ります。真になるのは、`src/lib/owner-sync.ts`（tsunagi-m3 `tools/owner-gate/client` の複製。
+`gate:verify` が一致を確かめる）の `isPreviewBuild()` が真で、かつこのブラウザで告知が確認済みのときだけです。
+
+### 初回の告知
+
+プレビュー版は初めて開いたときに、送るもの（保存したセッションとエラーの記録）、いつ送るか、使いみち、
+保存先と見られる人、削除の方法をダイアログで示します（`src/components/PreviewNoticeDialog.tsx`）。
+× も背景のタップも Escape も無く、出口は「確認して続ける」だけで、その間は後ろの `<main>` が `inert` です。
+
+- 確認は `localStorage` の `preview-notice:v1`（確認した時刻）。無い・読めないなら告知を出します。
+  書けないときはそのページの間だけ通し、次に開いたときにもう一度出します
+- 確認の前に生まれた診断レコードは送らずに outbox（`smg2-outbox`）に置き、確認後の最初の flush で送ります。
+  この端末でアカウントが一度も確かめられていなければ宛先が分からないので、送らずに捨てます（outbox の規則）
+- 送る中身を変えたら、告知の文面（`previewNotice.ts`）とプライバシーポリシーの `#preview` を一緒に直し、
+  キーの版を上げます（`v2`）。全員にもう一度示すためです
 
 ### 誰の行か
 

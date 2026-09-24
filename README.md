@@ -49,6 +49,11 @@ MILE をご購入の方と過去の施工オーナーさん（m3 でプレビュ
 [プライバシーポリシーのプレビュー版の節](https://m3.tsunagi.app/privacy-policy#preview)
 （[English](https://m3.tsunagi.app/en/privacy-policy#preview)）にあります。アプリの PRIVACY からも開けます。
 
+初めて開いたときは、何を・いつ送り、何に使い、どこに保存し、どう消せるかを、アプリの中の画面で示します。
+「確認して続ける」を押すまでは何も送りません — SYNC も、診断レコードも、ゲートへの状態確認も
+（送る経路のすべてが最初に `src/lib/previewNotice.ts` の `syncAllowed()` を確かめる）。
+確認はブラウザごとに一度で、`localStorage` の `preview-notice:v1` に残ります。
+
 配信は `npm run deploy` だけで行います。ゲートが無い・公開ツリーの検査に落ちる・作業ツリーが汚れている・
 HEAD が `origin/main`（公開リポジトリ）と違う・ビルドがプレビュー版でない、のどれかなら拒否します
 （`scripts/deploy.mjs` の冒頭に理由つきで列挙）。

@@ -182,6 +182,40 @@ export function Pill({ children, tone = 'neutral', title }: { children: React.Re
 }
 
 /**
+ * The filled button. **One per window, and only for the act the window exists for** — the one way
+ * past a gate that offers no other. Everything else is a `TextButton`: the fill is what makes this
+ * the thing the eye lands on, and two of them would make neither.
+ *
+ * The tint is Pill's (`FILL`), not a solid block of accent; a block of blue is a large fill of
+ * brand colour, and this app keeps those for nothing. 40px tall, because it is pressed with a thumb
+ * on a phone or a head unit, and the tint is the visible edge of what the thumb has to hit.
+ */
+export function FillButton({
+    children,
+    onClick,
+    Icon,
+    className = '',
+    ...rest
+}: {
+    children: React.ReactNode;
+    onClick: () => void;
+    Icon?: LucideIcon;
+    className?: string;
+} & Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 'onClick' | 'className'>) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            className={`inline-flex h-10 items-center gap-1.5 whitespace-nowrap rounded px-4 ${LABEL} transition-colors ${FILL.primary} hover:bg-blue-500/25 hover:text-blue-300 ${className}`}
+            {...rest}
+        >
+            {Icon && <Icon className="size-3 shrink-0" />}
+            {children}
+        </button>
+    );
+}
+
+/**
  * A filter chip: same tint language as Pill, but pressable.
  *
  * `count` is not decoration. With 323 jobs behind a default filter, the number

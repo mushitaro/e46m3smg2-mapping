@@ -11,8 +11,10 @@
  * the owner arrived from m3; the server files every row under that account and shows each owner
  * only their own. There is no token and nothing to configure (`owner-sync.ts`).
  *
- * **Preview only.** Production is local-only and its privacy text says so: every function here
- * that makes a request returns without one unless `isPreviewBuild()`.
+ * **Preview only, and only once the owner has said so.** Production is local-only and its privacy
+ * text says so. On the preview, what is sent is said first, in the first-run notice, and nothing
+ * goes before the owner confirms it: every function here that makes a request returns without one
+ * unless `syncAllowed()` (`previewNotice.ts`) — a preview build, notice confirmed.
  *
  * **Practice rows are marked at the source.** A simulated read produces plausible bytes; a row that
  * does not say so is indistinguishable from a real dump once the session is closed. The flag rides
@@ -21,7 +23,8 @@
 
 import type { Workspace } from './workspace';
 import { changedCells } from './edits';
-import { api, gunzipB64, isPreviewBuild } from './owner-sync';
+import { api, gunzipB64 } from './owner-sync';
+import { syncAllowed } from './previewNotice';
 import { APP_VERSION, BUILD_ID } from './version';
 
 /** Which build wrote a row: the hand-bumped version and the source hash the page runs. */
@@ -62,7 +65,7 @@ export interface SyncResult {
     expired?: boolean;
     /** 413: more than a row can hold. */
     tooLarge?: boolean;
-    /** No request reached the server — offline, or not a preview build. */
+    /** No request reached the server — offline, not a preview build, or the notice not confirmed. */
     notSent?: boolean;
     error?: string;
 }
@@ -189,7 +192,9 @@ export async function buildPayload(
 
 /** Save (or save again) a session's cloud copy. Never throws; says why when it did not work. */
 export async function saveExtraction(payload: SyncPayload): Promise<SyncResult> {
-    if (!isPreviewBuild()) return { ok: false, id: payload.id, uploadedBytes: 0, notSent: true };
+    // There is no queue for sessions: before the notice is confirmed a SYNC is simply not made —
+    // and it cannot be pressed then, because the notice is in front of the hub.
+    if (!syncAllowed()) return { ok: false, id: payload.id, uploadedBytes: 0, notSent: true };
     const bytes = JSON.stringify(payload).length;
     const result = await api<{ id?: string; error?: string }>('/api/extractions', { method: 'POST', body: payload });
     if (result.ok) return { ok: true, id: result.data?.id ?? payload.id, uploadedBytes: bytes };
@@ -242,19 +247,19 @@ export interface CloudList<T> {
 
 /** The owner's saved sessions, newest first, practice ones included and marked. */
 export async function listCloudSessions(): Promise<CloudList<CloudSession>> {
-    if (!isPreviewBuild()) return { rows: null, expired: false };
+    if (!syncAllowed()) return { rows: null, expired: false };
     const r = await api<{ extractions?: CloudSession[] }>('/api/extractions?practice=1&limit=100');
     return { rows: r.ok ? r.data?.extractions ?? [] : null, expired: r.expired };
 }
 
 export async function fetchCloudSession(id: string): Promise<{ row: CloudSessionFull | null; expired: boolean }> {
-    if (!isPreviewBuild()) return { row: null, expired: false };
+    if (!syncAllowed()) return { row: null, expired: false };
     const r = await api<{ extraction?: CloudSessionFull }>(`/api/extractions/${encodeURIComponent(id)}`);
     return { row: r.ok ? r.data?.extraction ?? null : null, expired: r.expired };
 }
 
 export async function deleteCloudSession(id: string): Promise<{ ok: boolean; expired: boolean }> {
-    if (!isPreviewBuild()) return { ok: false, expired: false };
+    if (!syncAllowed()) return { ok: false, expired: false };
     const r = await api(`/api/extractions/${encodeURIComponent(id)}`, { method: 'DELETE' });
     return { ok: r.ok, expired: r.expired };
 }

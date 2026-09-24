@@ -17,11 +17,18 @@
  *
  * **Preview only.** Production makes no request here at all; its records stay on screen, where
  * COPY still works.
+ *
+ * **Not before the notice.** On the preview, nothing goes until the owner has confirmed the
+ * first-run notice (`syncAllowed()`, `previewNotice.ts`). A record filed before that goes where a
+ * record that could not be sent already goes — the outbox, stamped with the account this device
+ * last confirmed — and nothing is flushed, so it leaves with the first flush after the owner
+ * confirms, or not at all if no account was ever confirmed here.
  */
 
 import { formatTrace, type TraceSnapshot } from '@tsunagi/ds2-transport';
 
 import { api, isPreviewBuild, outbox } from './owner-sync';
+import { syncAllowed } from './previewNotice';
 import { APP_BUILD, gzipToBase64 } from './sync';
 import { APP_VERSION, BUILD_ID } from './version';
 
@@ -163,9 +170,13 @@ async function post(payload: DiagnosticPayload): Promise<{ sent: Sent; status: n
     return { sent: 'drop', status: r.status };
 }
 
-/** Send whatever the outbox holds, oldest first. Called after every send that succeeds. */
+/**
+ * Send whatever the outbox holds, oldest first. Called after every send that succeeds, and by
+ * `useCloud` once the gate says the session is active — but never before the notice is confirmed:
+ * until then the records wait, and not even the gate's status is asked.
+ */
 export async function flushDiagnostics(): Promise<number> {
-    if (!isPreviewBuild()) return 0;
+    if (!syncAllowed()) return 0;
     return OUTBOX.flush(async record => (await post(record as DiagnosticPayload)).sent !== 'retry');
 }
 
@@ -177,6 +188,11 @@ export async function recordDiagnostic(input: DiagnosticInput): Promise<void> {
     if (!isPreviewBuild()) return;
     try {
         const payload = await diagnosticPayload(input);
+        // Not confirmed yet: kept, as a record that could not go is, and not sent.
+        if (!syncAllowed()) {
+            await OUTBOX.add(payload);
+            return;
+        }
         const { sent } = await post(payload);
         if (sent === 'retry') await OUTBOX.add(payload);
         else if (sent === 'sent') await flushDiagnostics();
@@ -190,6 +206,12 @@ export async function sendDiagnostic(input: DiagnosticInput): Promise<Diagnostic
     const payload = await diagnosticPayload(input);
     const uploadedBytes = JSON.stringify(payload).length;
     if (!isPreviewBuild()) return { ok: false, id: payload.id, uploadedBytes: 0, error: 'this build does not sync' };
+    if (!syncAllowed()) {
+        // SEND is behind the notice, so this is the guard rather than a path anyone takes: kept, as
+        // a record that could not go is, and not sent before the owner has confirmed.
+        await OUTBOX.add(payload);
+        return { ok: false, queued: true, id: payload.id, uploadedBytes, error: 'notice not confirmed' };
+    }
     const { sent, status } = await post(payload);
     if (sent === 'sent') {
         void flushDiagnostics();
@@ -219,13 +241,13 @@ export interface CloudDiagnostic {
 }
 
 export async function listCloudDiagnostics(): Promise<{ rows: readonly CloudDiagnostic[] | null; expired: boolean }> {
-    if (!isPreviewBuild()) return { rows: null, expired: false };
+    if (!syncAllowed()) return { rows: null, expired: false };
     const r = await api<{ diagnostics?: CloudDiagnostic[] }>('/api/diagnostics?practice=1&limit=100');
     return { rows: r.ok ? r.data?.diagnostics ?? [] : null, expired: r.expired };
 }
 
 export async function deleteCloudDiagnostic(id: string): Promise<{ ok: boolean; expired: boolean }> {
-    if (!isPreviewBuild()) return { ok: false, expired: false };
+    if (!syncAllowed()) return { ok: false, expired: false };
     const r = await api(`/api/diagnostics/${encodeURIComponent(id)}`, { method: 'DELETE' });
     return { ok: r.ok, expired: r.expired };
 }

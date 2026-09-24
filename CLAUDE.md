@@ -32,6 +32,10 @@ D1（`smg2-tuner-runs`、binding `RUNS_DB`、`migrations/`）がある。
   `npm run gate:verify` で一致を確かめる。
 - `/api/*` のクエリはすべてオーナーで絞る（`owner = ?`）。オーナーはゲートが渡したもの
   （`ownerOf(context.data)`）だけから取り、リクエストの中身からは取らない。
+- プレビュー版が送るのは、初回の告知で「確認して続ける」が押されたあとだけ。送る経路
+  （`sync.ts`・`diagnostics.ts`・`useCloud`、そして新しく足す経路）は、要求を作る前に
+  `syncAllowed()`（`src/lib/previewNotice.ts`）を確かめる。送る中身を変えたら、告知の文面と
+  プライバシーポリシーの `#preview` を一緒に直し、キーの版を上げる。
 - デプロイは `npm run deploy` だけ。`wrangler pages deploy` を直接叩かない。
 - `public/factory/`（BMW の工場較正）と `public/xdf/`（第三者の XDF）は手元にだけ置くファイルで、
   git に入れない（`.gitignore` 済み、`npm run check:public-tree` とデプロイの砦が検査する）。

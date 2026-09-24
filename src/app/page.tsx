@@ -71,6 +71,7 @@ import { buildCodeModel } from '@/lib/code/model';
 import { SessionList } from '@/components/SessionList';
 import { CloudPanel } from '@/components/CloudPanel';
 import { FlashDialog } from '@/components/FlashDialog';
+import { PreviewNoticeDialog } from '@/components/PreviewNoticeDialog';
 import { calibrationSector, type FlashPlan } from '@tsunagi/ds2-smg2-write';
 import {
     deleteSession, listSessions, loadSessionBytes, recordSession, renameSession,
@@ -117,6 +118,7 @@ import {
 import { editsFromShared, parseSharedEdits } from '@/lib/cloudRestore';
 import { privacyUrl } from '@/lib/links';
 import { reauthHref } from '@/lib/owner-sync';
+import { confirmNotice, usePreviewNoticeOpen } from '@/lib/previewNotice';
 import { usePreviewBuild } from '@/lib/variant';
 import { useCloud } from '@/hooks/useCloud';
 import {
@@ -236,7 +238,15 @@ export default function Home() {
      * production build (no `app-variant`) makes no request to the gate or the API at all.
      */
     const preview = usePreviewBuild();
-    const cloud = useCloud(preview);
+    /**
+     * The preview's first-run notice — what it sends and why — until the owner confirms it on this
+     * browser. While it is up the page behind it is `inert`, so nothing there can be pressed or
+     * focused, and SYNC makes no request: not the status poll, not the outbox, not a record. The
+     * cloud hook is off, and every request path asks `syncAllowed()` besides (previewNotice.ts).
+     * Production has no notice; this is always false there.
+     */
+    const noticeOpen = usePreviewNoticeOpen();
+    const cloud = useCloud(preview && !noticeOpen);
     /** The CLOUD row being restored or deleted. */
     const [cloudBusy, setCloudBusy] = useState<string | null>(null);
 
@@ -1020,9 +1030,10 @@ export default function Home() {
     );
 
     return (
-        // 100svh: this page never scrolls, and on Android `100vh` is the viewport with the browser
-        // chrome retracted — the bottom of the layout would sit under the URL bar.
-        <main className="flex h-[100svh] flex-col overflow-hidden bg-slate-950 font-sans text-slate-300 selection:bg-blue-500/30">
+        <>
+        {/* 100svh: this page never scrolls, and on Android `100vh` is the viewport with the browser
+            chrome retracted — the bottom of the layout would sit under the URL bar. */}
+        <main inert={noticeOpen} className="flex h-[100svh] flex-col overflow-hidden bg-slate-950 font-sans text-slate-300 selection:bg-blue-500/30">
             {/* ═══ APP HEADER (48) ═══════════════════════════════════════════════════════════ */}
             <header className="relative z-10 flex h-[48px] shrink-0 items-center justify-between bg-slate-950/80 px-6 py-3 backdrop-blur-md">
                 {/* The ///M stripe as the header's bottom rule. Absolutely positioned inside the
@@ -1420,6 +1431,10 @@ export default function Home() {
                 </div>
             )}
         </main>
+
+        {/* Outside <main>, which is inert while this is up. */}
+        {noticeOpen && <PreviewNoticeDialog onConfirm={confirmNotice} />}
+        </>
     );
 }
 

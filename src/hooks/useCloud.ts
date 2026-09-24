@@ -3,8 +3,11 @@
 /**
  * The owner's side of SYNC, as state: whether the preview session is good, and what is saved.
  *
- * Only a preview build asks anything. With `enabled` false this hook makes no request at all —
- * production is local-only, and a status poll is still a request.
+ * Only a preview build asks anything, and only once its owner has confirmed the first-run notice.
+ * With `enabled` false this hook makes no request at all — production is local-only, and a status
+ * poll is still a request. The page passes `enabled` false while the notice is up, and `refresh`
+ * asks `syncAllowed()` itself as well: the status request and the outbox flush that follows it are
+ * the first things this page would send, and they must not run ahead of the confirmation.
  *
  * `unknown` (offline, m3 down, anything unexpected) is not `expired`. The page offers SIGN IN only
  * on `expired`: sending an owner to m3 because the garage has no signal would turn "no network"
@@ -17,6 +20,7 @@ import {
     deleteCloudDiagnostic, flushDiagnostics, listCloudDiagnostics, pendingDiagnostics, type CloudDiagnostic,
 } from '@/lib/diagnostics';
 import { gateStatus, type GateState } from '@/lib/owner-sync';
+import { syncAllowed } from '@/lib/previewNotice';
 import { deleteCloudSession, listCloudSessions, type CloudSession } from '@/lib/sync';
 
 export interface CloudState {
@@ -46,7 +50,7 @@ export function useCloud(enabled: boolean): CloudApi {
     const running = useRef(false);
 
     const refresh = useCallback(async () => {
-        if (!enabled || running.current) return;
+        if (!enabled || running.current || !syncAllowed()) return;
         running.current = true;
         setState(s => ({ ...s, loading: true }));
         try {
