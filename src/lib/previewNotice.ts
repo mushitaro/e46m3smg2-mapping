@@ -13,10 +13,12 @@
  *
  * **The words are the ones m3's page showed, verbatim** — tsunagi-m3 `lib/preview-notice-copy.ts`,
  * `NOTICE_COPY` and `NOTICE_APPS['smg2-preview']` — except the button, which continues rather than
- * opens. They describe what `buildPayload` (sync.ts) and `diagnosticPayload` (diagnostics.ts) put in
- * a request, plus the user agent the API records beside each row; the privacy policy's `#preview`
- * section on m3 lists the same things at length. A change to either payload is a change to this
- * text and to that list, and a new key below.
+ * opens, and the two lines on error records: m3's said "each read and write" and "after each
+ * operation", and this build cannot write, so they say what it does — a record after each read and
+ * whenever something fails (page.tsx). They describe what `buildPayload` (sync.ts) and
+ * `diagnosticPayload` (diagnostics.ts) put in a request, plus the user agent the API records beside
+ * each row; the privacy policy's `#preview` section on m3 lists the same things at length. A change
+ * to either payload is a change to this text and to that list, and a new key below.
  *
  * **Confirmed once per browser.** The acknowledgement is a localStorage key with its version in its
  * name: a change to what the preview sends is a new key (`v2`), and everyone is asked again. A key
@@ -69,8 +71,8 @@ export const PREVIEW_NOTICE: Record<Lang, PreviewNoticeText> = {
         sessions: 'SMG II ECU から読み出したイメージ、ZB 番号、製造者データ、編集した値、読み出しの記録',
         sessionsWhen: 'SYNC を押して保存したときに送ります。',
         recordsTitle: 'エラーの記録',
-        records: '読み出し・書き込みごとの結果とエラーの文面、通信記録の抜粋、ZB 番号',
-        recordsWhen: '操作のたびに自動で送ります。通信できないときは端末に残し、次に送ります。',
+        records: '読み出しごとの結果とエラーの文面、通信記録の抜粋、ZB 番号',
+        recordsWhen: '読み出しのたびと、失敗したときに自動で送ります。通信できないときは端末に残し、次に送ります。',
         alsoSent: 'どちらにも、アプリの版とブラウザの種類が付きます。',
         purposeTitle: '使いみち',
         purpose: 'ご本人が別の端末で記録を開くため、そして不具合を調べてツールを直すためだけに使います。',
@@ -88,8 +90,8 @@ export const PREVIEW_NOTICE: Record<Lang, PreviewNoticeText> = {
         sessions: 'the image read from the SMG II ECU, the ZB number, the manufacturer data, your edits and the read log',
         sessionsWhen: 'Sent when you press SYNC to save one.',
         recordsTitle: 'Error records',
-        records: 'the outcome and any error text of each read and write, an excerpt of the communication, and the ZB number',
-        recordsWhen: 'Sent automatically after each operation. Without a connection they wait on the device and go next time.',
+        records: 'the outcome and any error text of each read, an excerpt of the communication, and the ZB number',
+        recordsWhen: 'Sent automatically after each read, and whenever something fails. Without a connection they wait on the device and go next time.',
         alsoSent: 'Both carry the app version and the browser type.',
         purposeTitle: 'What it is for',
         purpose: 'Only for opening your records on your other devices, and for finding and fixing faults in the tool.',

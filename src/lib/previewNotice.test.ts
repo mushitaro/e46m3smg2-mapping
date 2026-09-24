@@ -276,4 +276,16 @@ describe('the dialog', () => {
         expect(html).toMatch(
             /<a href="https:\/\/m3\.tsunagi\.app\/en\/privacy-policy#preview" target="_blank" rel="noopener noreferrer"/);
     });
+
+    it('speaks of reads only, because this build cannot write', async () => {
+        // m3's copy, shared by all five apps, said records follow "each read and write". This build
+        // has no write path, and the notice may not claim to send records of something the app
+        // cannot do. The day a write path lands this fails, and the notice, the policy's #preview
+        // list and the key's version change together.
+        const { CAPABILITIES } = await import('./version');
+        const { PREVIEW_NOTICE } = await import('./previewNotice');
+        expect(CAPABILITIES.canWriteToEcu).toBe(false);
+        expect(Object.values(PREVIEW_NOTICE.ja).join('\n')).not.toMatch(/書き込|書込/);
+        expect(Object.values(PREVIEW_NOTICE.en).join('\n')).not.toMatch(/\bwrit/i);
+    });
 });
