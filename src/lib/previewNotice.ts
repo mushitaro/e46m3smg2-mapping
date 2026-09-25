@@ -12,13 +12,15 @@
  * until the owner has pressed 確認して続ける on this browser.
  *
  * **The words are the ones m3's page showed, verbatim** — tsunagi-m3 `lib/preview-notice-copy.ts`,
- * `NOTICE_COPY` and `NOTICE_APPS['smg2-preview']` — except the button, which continues rather than
- * opens, and the two lines on error records: m3's said "each read and write" and "after each
- * operation", and this build cannot write, so they say what it does — a record after each read and
- * whenever something fails (page.tsx). They describe what `buildPayload` (sync.ts) and
- * `diagnosticPayload` (diagnostics.ts) put in a request, plus the user agent the API records beside
- * each row; the privacy policy's `#preview` section on m3 lists the same things at length. A change
- * to either payload is a change to this text and to that list, and a new key below.
+ * `NOTICE_COPY` and `NOTICE_APPS['smg2-preview']` — except the build's name, ワークス版 / WORKS since
+ * the operator's decision of 2026-09-25 (a name, not a change to what is sent, so the key below
+ * stayed `v1`); the button, which continues rather than opens; and the two lines on error records:
+ * m3's said "each read and write" and "after each operation", and this build cannot write, so they
+ * say what it does — a record after each read and whenever something fails (page.tsx). They
+ * describe what `buildPayload` (sync.ts) and `diagnosticPayload` (diagnostics.ts) put in a request,
+ * plus the user agent the API records beside each row; the privacy policy's `#preview` section on
+ * m3 lists the same things at length. A change to either payload is a change to this text and to
+ * that list, and a new key below.
  *
  * **Confirmed once per browser.** The acknowledgement is a localStorage key with its version in its
  * name: a change to what the preview sends is a new key (`v2`), and everyone is asked again. A key
@@ -39,7 +41,7 @@ import { isPreviewBuild } from './owner-sync';
 export const NOTICE_KEY = 'preview-notice:v1';
 
 /** The dialog's title: the app as the preview names itself — the gate's page, the branded manifest. */
-export const NOTICE_TITLE = 'E46M3SMG2 /// MAPPING — PREVIEW';
+export const NOTICE_TITLE = 'E46M3SMG2 /// MAPPING — WORKS';
 
 export interface PreviewNoticeText {
     lead: string;
@@ -66,7 +68,7 @@ export interface PreviewNoticeText {
 
 export const PREVIEW_NOTICE: Record<Lang, PreviewNoticeText> = {
     ja: {
-        lead: 'このプレビュー版は、保存した記録を別の端末でも開けるよう、また不具合を調べられるよう、次のものを運営者のサーバーへ送ります。',
+        lead: 'このワークス版は、保存した記録を別の端末でも開けるよう、また不具合を調べられるよう、次のものを運営者のサーバーへ送ります。',
         sessionsTitle: '保存したセッション',
         sessions: 'SMG II ECU から読み出したイメージ、ZB 番号、製造者データ、編集した値、読み出しの記録',
         sessionsWhen: 'SYNC を押して保存したときに送ります。',
@@ -85,7 +87,7 @@ export const PREVIEW_NOTICE: Record<Lang, PreviewNoticeText> = {
         confirm: '確認して続ける',
     },
     en: {
-        lead: 'So that what you save opens on your other devices, and so that faults can be investigated, this preview sends the following to our server.',
+        lead: 'So that what you save opens on your other devices, and so that faults can be investigated, this WORKS build sends the following to our server.',
         sessionsTitle: 'Sessions you save',
         sessions: 'the image read from the SMG II ECU, the ZB number, the manufacturer data, your edits and the read log',
         sessionsWhen: 'Sent when you press SYNC to save one.',

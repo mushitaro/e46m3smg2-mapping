@@ -13,6 +13,10 @@
  * `false` is also the safe direction. Everything this gates is SYNC — requests to the gate and the
  * API — and production must make none (tsunagi-m-release §2.2: SYNC is preview-only for good,
  * because production is local-only and says so).
+ *
+ * What the build is CALLED is a second meta, `app-label`, written beside it from
+ * `scripts/brand-label.mjs` — the preview is called WORKS (operator, 2026-09-25). It only names the
+ * build in the header's badge: nothing compares it, and neither meta is derived from the other.
  */
 
 import { useSyncExternalStore } from 'react';
@@ -23,4 +27,11 @@ const never = () => () => {};
 
 export function usePreviewBuild(): boolean {
     return useSyncExternalStore(never, isPreviewBuild, () => false);
+}
+
+const readLabel = (): string => document.querySelector('meta[name="app-label"]')?.getAttribute('content') ?? '';
+
+/** WORKS | STAGING | '' (production). Display only — brand-preview writes it from scripts/brand-label.mjs. */
+export function useBuildLabel(): string {
+    return useSyncExternalStore(never, readLabel, () => '');
 }

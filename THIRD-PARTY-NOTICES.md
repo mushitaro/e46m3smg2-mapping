@@ -29,8 +29,8 @@ Build and test only: typescript (Apache-2.0), vitest (MIT), wrangler and
 @cloudflare/workers-types (MIT OR Apache-2.0).
 
 The app makes **no network calls to any third party**. It talks to the ECU over Web Serial or
-WebUSB. The preview build also talks to its own origin (the owner gate and the SYNC API) — see
-README.md §Preview.
+WebUSB. The WORKS build also talks to its own origin (the owner gate and the SYNC API) — see
+README.md §オーナー向けワークス版.
 
 ---
 
@@ -47,7 +47,7 @@ files `7843256DA`–`7843259DA` (`.0DA`), with the `GDSMG2.DAT` table that pairs
 numbers. They are proprietary and are **not redistributed here**.
 
 The app uses the four `.0DA` files as the STOCK reference calibrations: the build copies whatever
-is in `public/factory/` into the output. The maintainer's preview build carries them and serves
+is in `public/factory/` into the output. The maintainer's WORKS build carries them and serves
 them only behind the owner gate; a build from a fresh clone has none, and the app says "no
 factory reference" instead of failing.
 
@@ -65,7 +65,7 @@ the SMG II 510 calibration, authored by the **MS4X Dev Team** and supplied by Ol
 
 The app reads them at runtime (without them it can read and export an image but cannot decode
 it), and the tests assert on their exact contents; those tests skip when the files are absent.
-The maintainer's preview build carries them, behind the owner gate.
+The maintainer's WORKS build carries them, behind the owner gate.
 
 What IS committed and derived from them: `src/lib/smg2-catalog/` — this project's corrections to
 the definition. Each entry names an item by its `uniqueId`, states the vendor's value it expects

@@ -22,10 +22,13 @@
  *    github.com/mushitaro/e46m3smg2-mapping. With no remote yet it refuses and says the repository
  *    has to be pushed first.
  * 6. **The build is not the preview, or not this source.** It must say app-variant "preview"
- *    (`check-branding.mjs` has already read the manifest and icons back), carry no `sync-token`
- *    meta — that token is retired and must never ship again — and hold the local BMW and MS4X
- *    files the app needs (THIRD-PARTY-NOTICES.md). And `out/sw.js`'s SOURCE_ID must equal the
- *    source hash, which is the guard this script was first written for:
+ *    (`check-branding.mjs` has already read the manifest and icons back), be called what the
+ *    operator named it — "W SMG2 MAP" on the home screen and app-label "WORKS" for the header
+ *    badge, pinned here as literals so that an edit to `brand-label.mjs` cannot rename the owners'
+ *    build unnoticed — carry no `sync-token` meta — that token is retired and must never ship
+ *    again — and hold the local BMW and MS4X files the app needs (THIRD-PARTY-NOTICES.md). And
+ *    `out/sw.js`'s SOURCE_ID must equal the source hash, which is the guard this script was first
+ *    written for:
  *
  *    `npm run build && wrangler pages deploy out` looks like it cannot deploy a failed build, and
  *    in a shell it usually cannot. What it does not survive is a pipe: `npm run build | grep …`
@@ -50,6 +53,9 @@ const PROJECT = 'e46m3smg2-mapping-preview';
 const PUBLIC_BRANCH = 'main';
 const REPO = 'mushitaro/e46m3smg2-mapping';
 const OUT = join(ROOT, 'out');
+/** What the owners' build is called (operator, 2026-09-25): the home screen, and the header badge. */
+const SHORT_NAME = 'W SMG2 MAP';
+const LABEL = 'WORKS';
 /** Fetched from the app's own origin and not in git: the STOCK reference and the definitions. */
 const REQUIRED_LOCAL = [
     'factory/Y7843256.0DA', 'factory/Y7843257.0DA', 'factory/Y7843258.0DA', 'factory/Y7843259.0DA',
@@ -140,7 +146,7 @@ if (head !== published) {
 ok(`HEAD ${head.slice(0, 7)} is origin/${PUBLIC_BRANCH}`);
 
 // 6. the build: the preview, of this source, with what it needs and without what it must not carry
-if (!run('node', ['scripts/build.mjs', '--label', 'PREVIEW'])) refuse('the preview build failed.');
+if (!run('node', ['scripts/build.mjs', '--variant', 'preview'])) refuse('the preview build failed.');
 for (const file of REQUIRED_LOCAL) {
     if (!existsSync(join(OUT, file))) refuse(`out/${file} is missing. Supply it locally (README.md, THIRD-PARTY-NOTICES.md).`);
 }
@@ -151,6 +157,10 @@ for (const file of htmlFiles(OUT)) {
 const index = readFileSync(join(OUT, 'index.html'), 'utf8');
 const variant = /<meta\s+name="app-variant"\s+content="([^"]*)"/.exec(index)?.[1];
 if (variant !== 'preview') refuse(`out/index.html says app-variant "${variant}", not "preview".`);
+const shortName = JSON.parse(readFileSync(join(OUT, 'manifest.webmanifest'), 'utf8')).short_name;
+if (shortName !== SHORT_NAME) refuse(`out/manifest.webmanifest says short_name "${shortName}", not "${SHORT_NAME}".`);
+const label = /<meta\s+name="app-label"\s+content="([^"]*)"/.exec(index)?.[1];
+if (label !== LABEL) refuse(`out/index.html says app-label "${label}", not "${LABEL}".`);
 
 const swPath = join(OUT, 'sw.js');
 if (!existsSync(swPath)) refuse('out/sw.js is missing — the build did not finish.');
@@ -159,7 +169,8 @@ const actual = capture('node', ['scripts/build-id.mjs']);
 if (stamped !== actual) {
     refuse(`out/ was built from ${stamped ?? '(no stamp)'} but the source is ${actual}. The build output is stale.`);
 }
-ok(`out/ is source ${actual}, app-variant preview, ${REQUIRED_LOCAL.length} local files present, no sync-token`);
+ok(`out/ is source ${actual}, app-variant preview, app-label ${LABEL}, "${SHORT_NAME}", `
+    + `${REQUIRED_LOCAL.length} local files present, no sync-token`);
 
 if (CHECK_ONLY) {
     console.log('\n[deploy] --check: every guard passed; nothing was uploaded.');
@@ -177,4 +188,5 @@ if (!run('npx', ['wrangler', 'pages', 'deploy', 'out',
 }
 console.log(`\n[deploy] Deployed source ${actual} (${head.slice(0, 7)}) to https://${PROJECT}.pages.dev`);
 console.log('[deploy] Read it back before saying so: "/" 302s to m3 without a session; with one, the build id, '
-    + 'app-variant preview and "P SMG2 MAP" in the manifest; /api/extractions 401 without a session.');
+    + `app-variant preview and app-label ${LABEL} in the page and "${SHORT_NAME}" in the manifest; `
+    + '/api/extractions 401 without a session.');

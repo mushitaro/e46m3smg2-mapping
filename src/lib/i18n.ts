@@ -367,7 +367,7 @@ const EN: Catalog = {
 
     noticeExport: 'EXPORT writes the edited .bin with its checksum corrected, and its manifest.',
     syncExpired:
-        'The preview sign-in has lapsed. The session is safe on this device — SIGN IN is under '
+        'The WORKS sign-in has lapsed. The session is safe on this device — SIGN IN is under '
         + 'STARTUP › CLOUD, once the cable is disconnected.',
     syncTooLarge: 'Too large to save: one row holds at most 1.9 MB. EXPORT the .bin instead.',
     syncOffline: 'No network. The session is safe on this device; SYNC again when online.',
@@ -375,9 +375,9 @@ const EN: Catalog = {
     diagQueued: 'Could not send now. It is kept, and goes with the next record that does.',
     cloudNote: account => (account
         ? `Saved to account ${account}. Only that account can see these.`
-        : 'Saved to your preview account. Only you can see these.'),
+        : 'Saved to your WORKS account. Only you can see these.'),
     cloudExpired:
-        'The preview sign-in has lapsed. Everything on this device is still here. SIGN IN goes '
+        'The WORKS sign-in has lapsed. Everything on this device is still here. SIGN IN goes '
         + 'through m3 and comes back to this page; it is offered while the cable is disconnected.',
     cloudEmpty: 'Nothing saved yet. SYNC on the hub saves the session in hand.',
     cloudUnavailable: 'The list could not be read — offline, or the server did not answer.',
@@ -395,7 +395,7 @@ const EN: Catalog = {
     reauthUnsaved:
         'Signing in again leaves this page for m3 and comes back. Your edits are kept on this '
         + 'device. Go now?',
-    privacyHint: 'Privacy policy — what this preview sends, and why',
+    privacyHint: 'Privacy policy — what this WORKS build sends, and why',
 };
 
 const JA: Catalog = {
@@ -564,7 +564,7 @@ const JA: Catalog = {
 
     noticeExport: 'EXPORT で、チェックサムを直した編集済みの .bin とマニフェストを書き出します。',
     syncExpired:
-        'プレビュー版のログインの期限が切れました。セッションはこの端末に残っています。'
+        'ワークス版のログインの期限が切れました。セッションはこの端末に残っています。'
         + 'ケーブルを外すと、STARTUP › CLOUD に SIGN IN が出ます。',
     syncTooLarge: '大きすぎて保存できません（1 行 1.9 MB まで）。EXPORT で .bin を書き出してください。',
     syncOffline: 'ネットワークがありません。セッションはこの端末に残っています。オンラインで SYNC してください。',
@@ -572,9 +572,9 @@ const JA: Catalog = {
     diagQueued: '今は送れませんでした。保管しておき、次に送れたときに一緒に送ります。',
     cloudNote: account => (account
         ? `保存先 アカウント ${account}。このアカウントからだけ見えます。`
-        : '保存先はプレビュー版のあなたのアカウントです。あなたからだけ見えます。'),
+        : '保存先はワークス版のあなたのアカウントです。あなたからだけ見えます。'),
     cloudExpired:
-        'プレビュー版のログインの期限が切れました。この端末のデータはすべて残っています。'
+        'ワークス版のログインの期限が切れました。この端末のデータはすべて残っています。'
         + 'SIGN IN は m3 を経由してこのページに戻ります。ケーブルを外している間に表示されます。',
     cloudEmpty: 'まだ保存したものはありません。ハブの SYNC で、今のセッションを保存できます。',
     cloudUnavailable: '一覧を読めませんでした。オフラインか、サーバが応答していません。',
@@ -589,7 +589,7 @@ const JA: Catalog = {
     restoreCorrupt: 'クラウドの控えが自分の SHA-256 と一致しないため、復元しませんでした。',
     restoreFailed: 'クラウドの控えを読めませんでした。この端末では何も変わっていません。',
     reauthUnsaved: 'ログインし直すと、m3 を経由してこのページに戻ります。編集はこの端末に残ります。進みますか？',
-    privacyHint: 'プライバシーポリシー — このプレビュー版が送るものと、その理由',
+    privacyHint: 'プライバシーポリシー — このワークス版が送るものと、その理由',
 };
 
 const STRINGS: Record<Lang, Catalog> = { ja: JA, en: EN };

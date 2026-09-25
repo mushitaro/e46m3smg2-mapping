@@ -2,20 +2,26 @@
 /**
  * The build, in one place, with the build id computed at the only moment it can be.
  *
- *   node scripts/build.mjs                    production identity (no app-variant, no SYNC)
- *   node scripts/build.mjs --label PREVIEW    the owner preview (app-variant "preview", dev icons)
+ *   node scripts/build.mjs                      production identity (no app-variant, no SYNC)
+ *   node scripts/build.mjs --variant preview    the owners' build, called WORKS (app-variant
+ *                                               "preview", app-label "WORKS", dev icons)
+ *
+ * The flag names what the build IS. What it is called is not an argument: brand-preview looks it
+ * up in `scripts/brand-label.mjs`. Anything else on the command line is refused before the
+ * compile — `--label PREVIEW`, the old form, included; ignored, it would have built production.
  *
  * The order is the whole point:
  *
  *   1. verify the vendored ds2-core has not drifted
  *   2. hash the SOURCE  -> `NEXT_PUBLIC_BUILD_ID`, inlined by the bundler
  *   3. `next build`
- *   4. `brand-preview.mjs out <LABEL>` — only with --label: rewrites names, icons, app-variant
+ *   4. `brand-preview.mjs out <variant>` — only with --variant: rewrites names, icons, app-variant,
+ *      app-label
  *   5. `gen-sw.mjs`     -> hashes `out/`, names the service worker's cache. LAST to touch out/.
  *   6. `check-branding.mjs` reads the result back and fails on a build that is not what it says
  *
- * One compile serves every environment; the label is applied to its output, so the preview runs
- * the same bytes production would, plus the rewrites step 4 lists.
+ * One compile serves every environment; the variant's branding is applied to its output, so the
+ * preview runs the same bytes production would, plus the rewrites step 4 lists.
  * Step 2 has to precede step 3 because the bundler inlines `process.env.NEXT_PUBLIC_*` while it
  * builds; step 4 has to follow it because it hashes what was built. Writing the page's stamp into
  * `out/` after step 4 would rewrite bytes the cache name already described, which is the failure
@@ -28,6 +34,8 @@
 
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+
+import { BUILD_LABEL, labelFor } from './brand-label.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 
@@ -54,11 +62,24 @@ function capture(command, args) {
     return result.stdout.trim();
 }
 
-const labelAt = process.argv.indexOf('--label');
-const LABEL = labelAt === -1 ? null : process.argv[labelAt + 1];
-if (labelAt !== -1 && !LABEL) {
-    console.error('[build] --label needs a value, e.g. --label PREVIEW');
+const args = process.argv.slice(2);
+const VARIANT = args.length === 2 && args[0] === '--variant' ? args[1] : null;
+if (args.length && !VARIANT) {
+    console.error(`[build] usage: node scripts/build.mjs [--variant <${Object.keys(BUILD_LABEL).join(' | ')}>]`);
+    if (args.includes('--label')) {
+        console.error('[build] --label is gone: pass what the build is (--variant preview); what it is called '
+            + 'comes from scripts/brand-label.mjs.');
+    }
     process.exit(1);
+}
+if (VARIANT) {
+    // A variant with no label fails now, not after a minute of compiling.
+    try {
+        labelFor(VARIANT);
+    } catch (error) {
+        console.error(`[build] ${error.message}`);
+        process.exit(1);
+    }
 }
 
 run('node', ['scripts/verify-ds2-core-sync.mjs']);
@@ -73,6 +94,6 @@ if (!/^[0-9a-f]{12}$/.test(buildId)) {
 console.log(`[build] source build id ${buildId}`);
 
 run('npx', ['next', 'build'], { NEXT_PUBLIC_BUILD_ID: buildId });
-if (LABEL) run('node', ['scripts/brand-preview.mjs', 'out', LABEL]);
+if (VARIANT) run('node', ['scripts/brand-preview.mjs', 'out', VARIANT]);
 run('node', ['scripts/gen-sw.mjs'], { NEXT_PUBLIC_BUILD_ID: buildId });
-run('node', ['scripts/check-branding.mjs', 'out', LABEL ?? '--production']);
+run('node', ['scripts/check-branding.mjs', 'out', VARIANT ?? '--production']);

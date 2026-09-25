@@ -20,7 +20,7 @@ const ICON_SIZES = ['512', '256', '192', '32', 'maskable-512', 'maskable-192'];
 export const onRequest = createGate({
     clientId: 'smg2-preview',
     canonicalHost: 'e46m3smg2-mapping-preview.pages.dev',
-    name: 'E46M3SMG2 /// MAPPING — PREVIEW',
+    name: 'E46M3SMG2 /// MAPPING — WORKS',
     publicPaths: [
         '/manifest.webmanifest',
         ...ICON_SIZES.map(size => `/icons/mapping-${size}.png`),

@@ -119,7 +119,7 @@ import { editsFromShared, parseSharedEdits } from '@/lib/cloudRestore';
 import { privacyUrl } from '@/lib/links';
 import { reauthHref } from '@/lib/owner-sync';
 import { confirmNotice, usePreviewNoticeOpen } from '@/lib/previewNotice';
-import { usePreviewBuild } from '@/lib/variant';
+import { useBuildLabel, usePreviewBuild } from '@/lib/variant';
 import { useCloud } from '@/hooks/useCloud';
 import {
     describeUnknownLength,
@@ -238,6 +238,8 @@ export default function Home() {
      * production build (no `app-variant`) makes no request to the gate or the API at all.
      */
     const preview = usePreviewBuild();
+    /** What this build is called — WORKS on the preview, nothing on production. The badge only. */
+    const buildLabel = useBuildLabel();
     /**
      * The preview's first-run notice — what it sends and why — until the owner confirms it on this
      * browser. While it is up the page behind it is `inert`, so nothing there can be pressed or
@@ -1052,9 +1054,13 @@ export default function Home() {
                     <h1 className={`${WORDMARK} min-w-0 max-w-[60%] overflow-hidden text-ellipsis whitespace-nowrap text-slate-200 min-[900px]:max-w-none`}>
                         E46M3SMG2 <MMark /> MAPPING
                     </h1>
-                    {/* Which build this is, once you are already inside it. */}
+                    {/* What this build is called: WORKS on the owners' build, nothing on the release.
+                        Amber, because it is not the release; a tag, not a control. */}
+                    {buildLabel && <Pill tone="caution">{buildLabel}</Pill>}
+                    {/* Which build this is, once you are already inside it. Below 900px the build id
+                        gives its room to the badge; it stays in STARTUP › CONNECTION › BUILD. */}
                     <span className="shrink-0 whitespace-nowrap font-mono text-[9px] text-slate-500">
-                        V{APP_VERSION} · {BUILD_ID}
+                        V{APP_VERSION}<span className="hidden min-[900px]:inline"> · {BUILD_ID}</span>
                     </span>
                     {!CAPABILITIES.canWriteToEcu && <span className="hidden min-[900px]:inline"><Pill tone="ok">{C.readOnly}</Pill></span>}
 

@@ -12,8 +12,8 @@ const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-jet
 
 /**
  * The PRODUCTION identity, and only that. A preview build is this same export with its names,
- * icons and `app-variant` rewritten by `scripts/brand-preview.mjs` — so nothing here may name an
- * environment. The icons are the M ICON `mapping` set (tsunagi-m-release §4), written by
+ * icons, `app-variant` and `app-label` rewritten by `scripts/brand-preview.mjs` — so nothing here
+ * may name an environment. The icons are the M ICON `mapping` set (tsunagi-m-release §4), written by
  * tsunagi-m3's `scripts/m-icons.mjs`; the preview swaps each for its `-dev-` twin.
  *
  * No `appleWebApp.title`: left unset, iOS falls back to the manifest's `short_name`, so the home

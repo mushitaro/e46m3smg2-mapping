@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "next dev -p 5047",
     "build": "node scripts/build.mjs",
-    "build:preview": "node scripts/build.mjs --label PREVIEW",
+    "build:preview": "node scripts/build.mjs --variant preview",
     "start": "next start",
     "typecheck": "tsc --noEmit && tsc --noEmit -p functions",
     "test": "vitest run",

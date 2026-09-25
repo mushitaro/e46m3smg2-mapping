@@ -59,16 +59,17 @@ Android は USB デバイスの許可を**訪問ごと**に求めます。CONNEC
 
 ---
 
-## SYNC と D1（プレビュー版だけ）
+## SYNC と D1（ワークス版だけ）
 
-製品版（`app-variant` が空）は**同期の要求を1本も出しません**。プレビュー版も、**初回の告知が確認されるまでは
-出しません**。`sync.ts`・`diagnostics.ts`・`useCloud` は要求を作る前に `syncAllowed()`（`src/lib/previewNotice.ts`）を
-確かめて、偽なら戻ります。真になるのは、`src/lib/owner-sync.ts`（tsunagi-m3 `tools/owner-gate/client` の複製。
+製品版（`app-variant` が空）は**同期の要求を1本も出しません**。ワークス版（`app-variant` が `preview`）も、
+**初回の告知が確認されるまでは出しません**。`sync.ts`・`diagnostics.ts`・`useCloud` は要求を作る前に
+`syncAllowed()`（`src/lib/previewNotice.ts`）を確かめて、偽なら戻ります。
+真になるのは、`src/lib/owner-sync.ts`（tsunagi-m3 `tools/owner-gate/client` の複製。
 `gate:verify` が一致を確かめる）の `isPreviewBuild()` が真で、かつこのブラウザで告知が確認済みのときだけです。
 
 ### 初回の告知
 
-プレビュー版は初めて開いたときに、送るもの（保存したセッションとエラーの記録）、いつ送るか、使いみち、
+ワークス版は初めて開いたときに、送るもの（保存したセッションとエラーの記録）、いつ送るか、使いみち、
 保存先と見られる人、削除の方法をダイアログで示します（`src/components/PreviewNoticeDialog.tsx`）。
 × も背景のタップも Escape も無く、出口は「確認して続ける」だけで、その間は後ろの `<main>` が `inert` です。
 
@@ -170,19 +171,20 @@ npx wrangler d1 execute smg2-tuner-runs --remote --command "SELECT sha256, owner
 ## 配信
 
 ```
-https://e46m3smg2-mapping-preview.pages.dev   （プレビュー。オリジン全体がゲートの内側）
+https://e46m3smg2-mapping-preview.pages.dev   （ワークス版。オリジン全体がゲートの内側）
 ```
 
 ```bash
 npm run deploy -- --check   # 関門とビルドだけ。何も上げない
-npm run deploy              # 関門 → プレビュー版のビルド → wrangler pages deploy out --branch main
+npm run deploy              # 関門 → ワークス版のビルド → wrangler pages deploy out --branch main
 ```
 
 `scripts/deploy.mjs` は次のどれかで拒否します（冒頭のコメントに理由）:
 `wrangler.jsonc` の name がプレビューのプロジェクトでない / `functions/_middleware.ts` が無いか
 `gate:verify` が落ちる / `check-public-tree` が落ちる / 作業ツリーが汚れている（追跡外の CLAUDE.md と
 `.claude/` は除く）/ HEAD が `origin/main` と違う（リモートが無ければ「先に push」）/
-ビルドの `app-variant` が preview でない・`sync-token` meta がある・手元の `.0DA` と `.xdf` が `out/` に無い /
+ビルドの `app-variant` が preview でない・名前が `W SMG2 MAP` / `app-label` が `WORKS` でない・
+`sync-token` meta がある・手元の `.0DA` と `.xdf` が `out/` に無い /
 `out/sw.js` の `SOURCE_ID` が今のソースのハッシュと違う。
 
 プロジェクトは **Fail closed** にします（関数の上限を超えたときに、ゲートを通らず資産がそのまま出るのを防ぐ）。
@@ -263,7 +265,7 @@ footer 44  ナビゲーション。インジケータは上辺
 - **書込・読出系のコントロールをメニューやペインの裏に置かない。** READ と SHARE（今の SYNC）を
   「CONTROL」ペインの裏に隠していたため、スマホでは「読むボタンも送るボタンも無い」状態でした。
   hub は両ペインの外・footer の上に出し、**全幅で常時表示**にしました
-- **SYNC は hub の面**です（プレビュー版だけ。製品版では READ の後は RE-READ）。CONNECT → PROBE → READ → SYNC が主系列で、
+- **SYNC は hub の面**です（ワークス版だけ。製品版では READ の後は RE-READ）。CONNECT → PROBE → READ → SYNC が主系列で、
   hub は「次にやる1つ」の単一キュー。パネルに置くと探しに行く物になります
 - **`title` は配達手段ではない。** hover が無いので、`title` にしか無い文章は電話では存在しません。
   MapGrid の raw 値は hover 依存だったので、タップで読める readout に変えました
@@ -281,7 +283,7 @@ footer 44  ナビゲーション。インジケータは上辺
 抽出とは**別テーブル**です。抽出はイメージが要るので、**イメージを生まなかった実行**
 — 接続拒否、プローブ不一致、205テレグラム中140で死んだ読み出し — が端末から出られませんでした。
 
-- **自動で送ります（プレビュー版）。** 読み取りが終わるたび、接続・PROBE・読み取りが失敗するたびに1件。
+- **自動で送ります（ワークス版）。** 読み取りが終わるたび、接続・PROBE・読み取りが失敗するたびに1件。
   ガレージでエンジンを止めて SEND を押す人はいないし、失敗は起きたその時に取らないと残らないため。
   止めた（STOP）読み取りは記録しません — 止めたのは判断で、故障ではない
 - **黙って、失敗しない。** 送れないとき（オフライン・401・5xx）は IndexedDB の outbox（`smg2-outbox`、

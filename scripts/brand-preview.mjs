@@ -2,12 +2,12 @@
 /**
  * Renames an exported build so a preview install cannot be mistaken for production.
  *
- *   node scripts/brand-preview.mjs <out-dir> <LABEL>
+ *   node scripts/brand-preview.mjs <out-dir> <variant>        e.g. out preview
  *
  * The source is the PRODUCTION identity — `public/manifest.webmanifest` and `layout.tsx` name
- * E46M3SMG2 /// MAPPING with the M ICON production set, and carry no `app-variant`. This patches
- * the bytes one export produced, and nothing else, so the production build stays exactly what the
- * source says (tsunagi-m-release §4.2).
+ * E46M3SMG2 /// MAPPING with the M ICON production set, and carry no `app-variant` or `app-label`.
+ * This patches the bytes one export produced, and nothing else, so the production build stays
+ * exactly what the source says (tsunagi-m-release §4.2).
  *
  * ## What it changes
  *
@@ -15,18 +15,24 @@
  *     short_name    <L> SMG2 MAP                             the home screen
  *     description   … — <LABEL> BUILD, not the production tool.
  *     icons         the M ICON dev set (white on black); maskable entries to the dev maskable files
- *     every .html   app-variant (removed, then inserted once), apple-mobile-web-app-title if
- *                   present, and every icon / apple-touch-icon link
+ *     every .html   app-variant and app-label (each removed, then inserted once),
+ *                   apple-mobile-web-app-title if present, and every icon / apple-touch-icon link
  *     every .txt    the same icon paths — the RSC payload carries the head too, and a hydrating
  *                   page that read the production path back out of it would undo this
  *
  * `theme_color` and `background_color` stay: they are the app's ground, not the icon's. `<title>`
  * stays: it is the browser tab, where the URL already says which build this is.
  *
- * ## The label decides `app-variant`
+ * ## The variant is what the build IS; the label is what it is CALLED
  *
- * `preview` is the one value that turns SYNC on (`isPreviewBuild()` in `src/lib/owner-sync.ts`).
- * Production has no tag at all, and makes no SYNC request.
+ * The argument is the variant, written as `app-variant`, and it is what code compares: `preview` is
+ * the one value that turns SYNC on (`isPreviewBuild()` in `src/lib/owner-sync.ts`). Production has
+ * no tag at all, and makes no SYNC request.
+ *
+ * The label is looked up for the variant in `scripts/brand-label.mjs` — `preview` is called WORKS
+ * (operator, 2026-09-25) — and is display only: the three names above, and `app-label`, which the
+ * header's badge reads. Nothing compares it. Neither is computed from the other, so what the owners'
+ * build is called can change without changing what it does, and the reverse.
  *
  * ## Both arguments are required, neither has a default
  *
@@ -44,21 +50,31 @@
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { extname, join } from 'node:path';
 
-const [OUT, LABEL] = process.argv.slice(2);
-if (!OUT || !LABEL) {
-    console.error('usage: node scripts/brand-preview.mjs <out-dir> <LABEL>');
-    process.exit(1);
-}
-if (LABEL.length > 12 || !/^[A-Z][A-Z0-9 ]*$/.test(LABEL)) {
-    console.error(`[brand-preview] LABEL "${LABEL}" must be upper-case and at most 12 characters.`);
-    process.exit(1);
-}
-const VARIANT = LABEL.toLowerCase();
+import { labelFor } from './brand-label.mjs';
 
 const fail = message => {
     console.error(`[brand-preview] ${message}`);
     process.exit(1);
 };
+
+const [OUT, VARIANT] = process.argv.slice(2);
+if (!OUT || !VARIANT) {
+    console.error('usage: node scripts/brand-preview.mjs <out-dir> <variant>');
+    process.exit(1);
+}
+// A variant with no label is refused here, before `out/` is touched — including the old way of
+// calling this, `out PREVIEW`, which named the label and let the variant be its lower case.
+let LABEL;
+try {
+    LABEL = labelFor(VARIANT);
+} catch (error) {
+    fail(error.message);
+}
+// Every name below is built from the label, its first letter leads the short name, and Android
+// keeps ~12 characters of that.
+if (LABEL.length > 12 || !/^[A-Z][A-Z0-9 ]*$/.test(LABEL)) {
+    fail(`label "${LABEL}" (variant "${VARIANT}") must be upper-case and at most 12 characters.`);
+}
 
 /**
  * The dev twin of a production icon, by the names tsunagi-m3's `m-icons.mjs` writes:
@@ -128,10 +144,11 @@ for (const file of documents) {
     const before = readFileSync(file, 'utf8');
     const after = swapIcons(before)
         .replace(/(<meta name="apple-mobile-web-app-title" content=")[^"]*(")/g, `$1${shortName}$2`)
-        // Stripped before it is written: `out/` is not guaranteed to be a fresh export, and an
+        // Stripped before they are written: `out/` is not guaranteed to be a fresh export, and an
         // insert-only stamp leaves two tags with the stale one first, where every reader looks.
-        .replace(/<meta name="app-variant" content="[^"]*"\s*\/?>/g, '')
-        .replace(/<\/head>/, `<meta name="app-variant" content="${VARIANT}"/></head>`);
+        .replace(/<meta name="app-(?:variant|label)" content="[^"]*"\s*\/?>/g, '')
+        .replace(/<\/head>/,
+            `<meta name="app-variant" content="${VARIANT}"/><meta name="app-label" content="${LABEL}"/></head>`);
     if (after !== before) { writeFileSync(file, after); patched++; }
 }
 let payloads = 0;
@@ -141,5 +158,5 @@ for (const file of files(OUT, ['.txt'])) {
     if (after !== before) { writeFileSync(file, after); payloads++; }
 }
 
-console.log(`[brand-preview] ${OUT}: "${manifest.name}" / ${shortName} / variant ${VARIANT}, `
+console.log(`[brand-preview] ${OUT}: "${manifest.name}" / ${shortName} / variant ${VARIANT}, label ${LABEL}, `
     + `${moved.size} icon(s) to the dev set, manifest + ${patched} document(s) + ${payloads} payload(s)`);

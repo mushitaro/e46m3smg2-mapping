@@ -18,7 +18,7 @@ npm run dev            # http://localhost:5047
 npm test               # 292 tests（手元に無いファイルに依存するものは skip）
 npm run typecheck      # アプリと functions/ の両方
 npm run build          # 製品版: 静的エクスポート + Service Worker（SYNC なし）
-npm run build:preview  # オーナー向けプレビュー版（名前・アイコン・app-variant を付け替える）
+npm run build:preview  # オーナー向けワークス版（名前・アイコン・app-variant・app-label を付け替える）
 npm run gate:verify    # オーナーゲートが正本と一致し、有効になっているか
 npm run check:public-tree  # 公開してよいものだけが git に入っているか
 npm run preview        # wrangler pages dev（ゲート・Functions・D1 込み）→ §手元で動かす
@@ -29,11 +29,11 @@ npm run pull           # D1 から抽出データを data/extractions/ に落と
 変更のたびにこの四つを通します（`npm run build` は加えて `ds2-core` の同期とブランディングを検査します）。
 ESLint は入れていないので `npm run lint` はありません。
 
-## オーナー向けプレビュー版
+## オーナー向けワークス版
 
 製品版（`npm run build`）は端末の中だけで動き、どこにも何も送りません。
-**プレビュー版**（`e46m3smg2-mapping-preview.pages.dev`、アプリ名 `P SMG2 MAP`）は、
-MILE をご購入の方と過去の施工オーナーさん（m3 でプレビューの権利を持つアカウント）が、
+**ワークス版**（`e46m3smg2-mapping-preview.pages.dev`、アプリ名 `W SMG2 MAP`、ヘッダに `WORKS` の札）は、
+MILE をご購入の方と過去の施工オーナーさん（m3 でワークス版の権利を持つアカウント）が、
 開発中の版を先に使うためのものです。製品版に次のものが加わります。
 
 - **SYNC** — 読んだイメージ・読み取りの記録・編集を、自分のアカウントに保存する。
@@ -41,12 +41,15 @@ MILE をご購入の方と過去の施工オーナーさん（m3 でプレビュ
 - **自動の診断レコード** — 読み取りの完了と、接続・PROBE・読み取りの失敗のたびに、ログとテレグラムを
   自動で記録する。送れないとき（オフライン・期限切れ）は端末に保管し、次に送れたときに送る
 
-プレビュー版は**オリジン全体がオーナーゲートの内側**にあります（`functions/_middleware.ts`、
+名前は表示だけのもので（`scripts/brand-label.mjs` の表）、中身は `app-variant` が `preview` のビルドです。
+コードが比べるのは `app-variant` だけで、ホスト名・`build:preview`・コードの識別子は `preview` のままです。
+
+ワークス版は**オリジン全体がオーナーゲートの内側**にあります（`functions/_middleware.ts`、
 正本は tsunagi-m3 の `tools/owner-gate`）。開くと m3（`m3.tsunagi.app`）でのログインと
-プレビューの権利を確かめ、通った人だけにアプリ・API・工場データを出します。
+ワークス版の権利を確かめ、通った人だけにアプリ・API・工場データを出します。
 保存したものは本人のアカウントからしか見えません（全クエリが `owner = ?`）。
 何を送り、何に使い、どう消せるかは
-[プライバシーポリシーのプレビュー版の節](https://m3.tsunagi.app/privacy-policy#preview)
+[プライバシーポリシーのワークス版の節](https://m3.tsunagi.app/privacy-policy#preview)
 （[English](https://m3.tsunagi.app/en/privacy-policy#preview)）にあります。アプリの PRIVACY からも開けます。
 
 初めて開いたときは、何を・いつ送り、何に使い、どこに保存し、どう消せるかを、アプリの中の画面で示します。
@@ -55,12 +58,12 @@ MILE をご購入の方と過去の施工オーナーさん（m3 でプレビュ
 確認はブラウザごとに一度で、`localStorage` の `preview-notice:v1` に残ります。
 
 配信は `npm run deploy` だけで行います。ゲートが無い・公開ツリーの検査に落ちる・作業ツリーが汚れている・
-HEAD が `origin/main`（公開リポジトリ）と違う・ビルドがプレビュー版でない、のどれかなら拒否します
+HEAD が `origin/main`（公開リポジトリ）と違う・ビルドがワークス版でない、のどれかなら拒否します
 （`scripts/deploy.mjs` の冒頭に理由つきで列挙）。
 
 ## 手元で動かす（ゲート・Functions・D1 込み）
 
-`npm run dev` は画面だけです。SYNC まで動かすには、プレビュー版をビルドして `wrangler pages dev` で開きます。
+`npm run dev` は画面だけです。SYNC まで動かすには、ワークス版をビルドして `wrangler pages dev` で開きます。
 
 1. リポジトリ直下に `.dev.vars` を作る（gitignore 済み。コミットしない）:
 
@@ -101,7 +104,7 @@ HEAD が `origin/main`（公開リポジトリ）と違う・ビルドがプレ�
 Chrome for Android は `navigator.serial` を持つのに Bluetooth しか列挙せず、
 USB の K+DCAN はピッカーに出ないためです。`/link-check` で自分の端末の経路を確認できます。
 
-**PWA / モバイル / SYNC**: Android Chrome から WebUSB(FTDI) で吸い出せます。プレビュー版では
+**PWA / モバイル / SYNC**: Android Chrome から WebUSB(FTDI) で吸い出せます。ワークス版では
 SYNC で自分のアカウントに保存でき、運営者は `npm run pull` で手元に落とせます。詳細は
 [docs/pwa-and-sync.md](docs/pwa-and-sync.md)。iOS は Web Serial も WebUSB も無いため**非対応**。
 
@@ -149,7 +152,7 @@ UI の残り時間表示も同じ考えで、**その読み取りが実際に出
 ケーブルを抜くのは間違いで、18 分もあれば間違ったほうが使われます）。
 止めた場合も落ちた場合も、**届いたバイトは生キャプチャとして残ります**。
 24,576 でも 524,288 でもない長さにはどちらの定義も当たらないので、TUNE と COVERAGE は
-開きませんが、EXPORT と（プレビュー版では）SYNC は効きます。18 分読んで最後のテレグラムで落ちたから
+開きませんが、EXPORT と（ワークス版では）SYNC は効きます。18 分読んで最後のテレグラムで落ちたから
 全部捨てる、が一番損だからです。
 
 hub の面は状態から**導出**されます（`src/app/page.tsx` → `hubConfig`）。保存された「今どのボタン」は
@@ -294,7 +297,7 @@ functions/          Cloudflare Pages Functions: オーナーゲート（_middlew
 migrations/         D1 スキーマ
 scripts/            ビルド順序 / プレビューのブランド付け / SW 生成 / ds2-core 同期検査 /
                     ゲート・公開ツリー・ブランドの検査 / 配信の関門 / D1 からの取り出し
-public/icons/       M ICON の mapping セット（製品版）と -dev- セット（プレビュー版）。
+public/icons/       M ICON の mapping セット（製品版）と -dev- セット（ワークス版）。
                     tsunagi-m3 の scripts/m-icons.mjs --word mapping で生成
 src/
   app/page.tsx        シェル。hub は hubConfig() で導出
