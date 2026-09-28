@@ -107,6 +107,9 @@ for (const file of htmlFiles(OUT)) {
         fail(`${file}: app-label ${JSON.stringify(labels)}, want ${production ? 'none' : `["${LABEL}"]`}`);
     }
     if (html.includes('name="sync-token"')) fail(`${file}: carries a sync-token meta`);
+    // The CREDITS names (scripts/inject-supporters.mjs): one list in every page, in every build.
+    const lists = (html.match(/id="m-supporters"/g) ?? []).length;
+    if (lists !== 1) fail(`${file}: ${lists} CREDITS list(s), want exactly 1`);
     for (const [src] of html.matchAll(/\/icons\/[a-z0-9-]+\.png/g)) {
         if (!rightSet(src)) fail(`${file}: names ${src}, not from the ${setName} set`);
         else if (!existsSync(join(OUT, src))) fail(`${file}: names ${src}, which is not in ${OUT}`);

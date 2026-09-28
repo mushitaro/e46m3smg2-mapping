@@ -17,3 +17,16 @@ const PRIVACY_PREVIEW: Record<Lang, string> = {
 export function privacyUrl(lang: Lang): string {
     return PRIVACY_PREVIEW[lang];
 }
+
+/**
+ * MESH — where the work continues and who carries it. Linked once, from the CREDITS colophon
+ * (tsunagi-m-chrome §4). A plain link in a new tab; nothing is prefetched.
+ */
+const MESH: Record<Lang, string> = {
+    ja: 'https://m3.tsunagi.app/mesh',
+    en: 'https://m3.tsunagi.app/en/mesh',
+};
+
+export function meshUrl(lang: Lang): string {
+    return MESH[lang];
+}

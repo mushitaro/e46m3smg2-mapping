@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect } from 'react';
-import { X, Download, RefreshCw, Shield, Smartphone, Trash2, Languages } from 'lucide-react';
+import { X, Download, RefreshCw, Shield, Smartphone, Trash2, Languages, Medal } from 'lucide-react';
 import { C } from '@/lib/chrome';
 import { useLang } from '@/lib/i18n';
 
@@ -34,6 +34,7 @@ export function MobileMenu({
     installable,
     onInstall,
     onToggleLang,
+    onCredits,
     privacyHref,
 }: {
     onClose: () => void;
@@ -49,6 +50,8 @@ export function MobileMenu({
     installable: boolean;
     onInstall: () => void;
     onToggleLang: () => void;
+    /** CREDITS — who this is built on, and the MESH colophon. Same place as in the header. */
+    onCredits: () => void;
     /** The preview's privacy section; null on production, which draws no PRIVACY link. */
     privacyHref: string | null;
 }) {
@@ -97,6 +100,9 @@ export function MobileMenu({
                             <Shield className="size-5" />
                         </a>
                     )}
+                    <button onClick={onCredits} title="Credits & attribution" className="text-slate-500 transition hover:text-slate-300">
+                        <Medal className="size-5" />
+                    </button>
                     <button onClick={onToggleLang} title={t.switchLanguage} className="text-slate-500 transition hover:text-slate-300">
                         <Languages className="size-5" />
                     </button>

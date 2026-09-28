@@ -1,5 +1,6 @@
 {
   "name": "e46m3-smg2-tuner",
+  "meshProject": "smg2-mapping",
   "version": "0.1.0",
   "private": true,
   "license": "MIT",

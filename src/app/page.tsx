@@ -39,7 +39,7 @@ import {
     Trash2,
     Unplug,
     UploadCloud,
-    WifiOff, Flame} from 'lucide-react';
+    WifiOff, Flame, Medal} from 'lucide-react';
 import {
     coverageOf, decodeItem, readRun, runTargetOf, spansOf,
     type DecodedItem, type XdfItem,
@@ -72,6 +72,7 @@ import { SessionList } from '@/components/SessionList';
 import { CloudPanel } from '@/components/CloudPanel';
 import { FlashDialog } from '@/components/FlashDialog';
 import { PreviewNoticeDialog } from '@/components/PreviewNoticeDialog';
+import { CreditsDialog } from '@/components/CreditsDialog';
 import { calibrationSector, type FlashPlan } from '@tsunagi/ds2-smg2-write';
 import {
     deleteSession, listSessions, loadSessionBytes, recordSession, renameSession,
@@ -280,6 +281,7 @@ export default function Home() {
     /** Which pane a narrow window shows. */
     const [narrowPane, setNarrowPane] = useState<'map' | 'graph' | 'dash'>('map');
     const [menuOpen, setMenuOpen] = useState(false);
+    const [creditsOpen, setCreditsOpen] = useState(false);
 
     // GRAPH exists only where the height forces the split; elsewhere DASH already holds it.
     useEffect(() => {
@@ -1092,6 +1094,16 @@ export default function Home() {
                             <Shield className="size-5" />
                         </a>
                     )}
+                    {/* MEDAL after PRIVACY, as in every M tool: who this is built on, and the MESH
+                        colophon. The one item here that is an acknowledgement rather than a tool. */}
+                    <button
+                        type="button"
+                        onClick={() => setCreditsOpen(true)}
+                        title="Credits & attribution"
+                        className="hidden text-slate-500 transition-colors hover:text-slate-300 min-[900px]:block"
+                    >
+                        <Medal className="size-5" />
+                    </button>
                     <button
                         type="button"
                         onClick={() => setLang(lang === 'ja' ? 'en' : 'ja')}
@@ -1424,6 +1436,7 @@ export default function Home() {
                     installable={pwa.installable && !pwa.installed}
                     onInstall={() => void pwa.install()}
                     onToggleLang={() => setLang(lang === 'ja' ? 'en' : 'ja')}
+                    onCredits={() => { setMenuOpen(false); setCreditsOpen(true); }}
                     privacyHref={preview ? privacyUrl(lang) : null}
                 />
             )}
@@ -1440,6 +1453,7 @@ export default function Home() {
 
         {/* Outside <main>, which is inert while this is up. */}
         {noticeOpen && <PreviewNoticeDialog onConfirm={confirmNotice} />}
+        {creditsOpen && <CreditsDialog onClose={() => setCreditsOpen(false)} />}
         </>
     );
 }

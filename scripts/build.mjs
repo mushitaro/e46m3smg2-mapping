@@ -17,8 +17,9 @@
  *   3. `next build`
  *   4. `brand-preview.mjs out <variant>` — only with --variant: rewrites names, icons, app-variant,
  *      app-label
- *   5. `gen-sw.mjs`     -> hashes `out/`, names the service worker's cache. LAST to touch out/.
- *   6. `check-branding.mjs` reads the result back and fails on a build that is not what it says
+ *   5. `inject-supporters.mjs` — writes the CREDITS names (m3's /api/credits) into every page
+ *   6. `gen-sw.mjs`     -> hashes `out/`, names the service worker's cache. LAST to touch out/.
+ *   7. `check-branding.mjs` reads the result back and fails on a build that is not what it says
  *
  * One compile serves every environment; the variant's branding is applied to its output, so the
  * preview runs the same bytes production would, plus the rewrites step 4 lists.
@@ -95,5 +96,6 @@ console.log(`[build] source build id ${buildId}`);
 
 run('npx', ['next', 'build'], { NEXT_PUBLIC_BUILD_ID: buildId });
 if (VARIANT) run('node', ['scripts/brand-preview.mjs', 'out', VARIANT]);
+run('node', ['scripts/inject-supporters.mjs']);
 run('node', ['scripts/gen-sw.mjs'], { NEXT_PUBLIC_BUILD_ID: buildId });
 run('node', ['scripts/check-branding.mjs', 'out', VARIANT ?? '--production']);
