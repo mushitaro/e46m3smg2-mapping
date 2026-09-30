@@ -11,6 +11,12 @@ TSUNAGI ///M — E46 M3 の **SMG II 変速機 ECU（Siemens SMG2、software 510
 > `CAPABILITIES.canWriteToEcu` は `false` で、それを車へ送る経路はありません。
 > 理由は §書き込みが無い理由 を参照。
 
+**AI アシスタントやスクリプトから:** 画像の読み取り（ZB・チェックサム）、較正の解読、2 本の比較は、ブラウザ無しでも
+[matrix-tsunagi](https://github.com/mushitaro/matrix-tsunagi) で動きます
+（`npx matrix-tsunagi mapping smg2 read smg.bin --xdf Siemens_SMG_II_510_512K.xdf`、MCP は `npx -y matrix-tsunagi mcp mapping`）。
+中身はこのリポジトリのコードそのもので、解読はこのアプリの `loadDefinition` と項目ごとに一致することを検査しています。
+XDF は同梱していないので、お手持ちのものを渡します。
+
 ```bash
 npm install
 npm run hooks:install  # pre-commit で check-public-tree を走らせる（最初に一度）
