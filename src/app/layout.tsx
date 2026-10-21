@@ -47,7 +47,10 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
     return (
-        <html lang="ja">
+        /* `en` because the prerender is English (the language hook's server snapshot), so the
+           static HTML says what it holds. The reader's own language replaces it after hydration —
+           see useDocumentLang in lib/i18n.ts. */
+        <html lang="en">
             <body
                 className={`${inter.variable} ${jetbrainsMono.variable} ${inter.className} ` +
                     `bg-slate-950 text-slate-100 min-h-[100svh]`}

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { X, Download, RefreshCw, Shield, Languages, Medal, Github } from 'lucide-react';
+import { X, Download, RefreshCw, Shield, Medal, Github } from 'lucide-react';
 import { C } from '@/lib/chrome';
 import { useLang } from '@/lib/i18n';
 import { PROJECT_REPO_URL } from '@/lib/links';
@@ -72,8 +72,6 @@ interface Props {
     /** Already running as an installed app — nothing left to install to. */
     installed: boolean;
     onInstall: () => void;
-    /** The header's language switch, mirrored here so a phone has the same set the desk does. */
-    onToggleLang: () => void;
     /** CREDITS — who this is built on, and the MESH colophon. Same place as in the header. */
     onOpenCredits: () => void;
     /** The WORKS build's privacy section; null on a build that draws no PRIVACY link. */
@@ -141,7 +139,7 @@ const boardColumns = (count: number) => (count <= 4 ? Math.max(count, 1) : count
 
 export const MobileMenu: React.FC<Props> = ({
     onClose, tabs, activeTab, onSelectTab, vehicle, session, dragFrom, onDragEnd, onReload,
-    updateAvailable, installable, installed, onInstall, onToggleLang, onOpenCredits, privacyHref,
+    updateAvailable, installable, installed, onInstall, onOpenCredits, privacyHref,
     buildLabel,
 }) => {
     const { t } = useLang();
@@ -306,12 +304,8 @@ export const MobileMenu: React.FC<Props> = ({
                         </button>
                         <div className="flex items-center justify-start gap-1">
                             {/* No GUIDE: this app has no published method to point at, and an empty
-                                slot is not drawn for one (tsunagi-m-chrome §1). The language switch
-                                takes the place it would hold, as it follows MEDAL in the header. */}
-                            <button type="button" onClick={onToggleLang} title={t.switchLanguage}
-                                className={`${STRIP_ITEM} text-slate-600 hover:text-slate-300`}>
-                                <Languages className="w-3.5 h-3.5" />
-                            </button>
+                                slot is not drawn for one (tsunagi-m-chrome §1). No language switch
+                                either — the browser decides (i18n.ts, tsunagi-m-ux §13). */}
                             {/* Tinted and pulsing on an update, exactly as the header's twin is — the
                                 one state of this control that has to be seen without being looked for. */}
                             <button type="button" onClick={onReload}

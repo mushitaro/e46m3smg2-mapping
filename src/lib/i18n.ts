@@ -3,10 +3,16 @@
 /**
  * One language rule, resolved in one module.
  *
- * The rule: **an explicit choice wins; otherwise the browser decides.** This app shipped
- * English-only, which handed a Japanese operator an entirely English instrument — hub verbs, the
- * unconfirmed-address-space warning, the read-only claim — with no way out. A safety notice
- * nobody can read is not a safety notice.
+ * The rule: **the app opens in the reader's language, and that is the end of it** (tsunagi-m-ux
+ * §13). The browser is asked once, at load; `ja…` is Japanese and everything else English. This app
+ * shipped English-only, which handed a Japanese operator an entirely English instrument — hub
+ * verbs, the unconfirmed-address-space warning, the read-only claim — with no way out. A safety
+ * notice nobody can read is not a safety notice.
+ *
+ * There is no switch. The reader's browser already holds the answer, and a ja/en toggle in the
+ * header took a slot of a phone's ~312px for two buttons pressed once and never again. A reader who
+ * wants the other language changes the browser's setting, which is the right place and works on
+ * every other site too.
  *
  * Everything user-visible goes through `t` so that cannot recur. `Catalog` is a shared shape, so a
  * key added to one language and forgotten in the other is a compile error rather than an
@@ -17,11 +23,16 @@
  * warnings, the descriptions of what a control will do.
  */
 
-import { useSyncExternalStore } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 
 export type Lang = 'ja' | 'en';
 
-const STORAGE_KEY = 'smg2-drivelogic-lang';
+/**
+ * Where the retired header switch stored its choice. Nothing reads it any more, and it is removed
+ * on load: left in place, the old resolver's rule ("an explicit choice wins") would have pinned
+ * anyone who once pressed the switch to that language for good, with the control to undo it gone.
+ */
+const RETIRED_KEY = 'smg2-drivelogic-lang';
 
 /** The shape both catalogs must satisfy. */
 export interface Catalog {
@@ -143,7 +154,6 @@ export interface Catalog {
     covWindowMapNote: (bytes: string) => string;
     covNoGaps: string;
     covEmptyNote: (names: string, n: number) => string;
-    switchLanguage: string;
     lFindings: (n: number, kind: 'errors' | 'warnings' | 'notes') => string;
     phZbNumber: string;
     undocumentedBitsNote: string;
@@ -328,7 +338,6 @@ const EN: Catalog = {
         `${names}. The definition names ${n === 1 ? 'this category' : 'these categories'} and then `
         + `defines nothing in ${n === 1 ? 'it' : 'them'} — those tables have not been located. `
         + `Nothing you can do here fills them; they need to be found in the bytes first.`,
-    switchLanguage: 'Switch to Japanese',
     lFindings: (n, kind) => `${n} ${kind}`,
     phZbNumber: 'e.g. 7843260',
     undocumentedBitsNote:
@@ -527,7 +536,6 @@ const JA: Catalog = {
         `${names}。定義はこの${n === 1 ? 'カテゴリ' : 'カテゴリ群'}を名指ししていますが、`
         + `中身を 1 つも定義していません —— そのテーブルはまだ見つかっていません。`
         + `ここで埋められるものではなく、まずバイト列の中から見つける必要があります。`,
-    switchLanguage: 'English に切り替え',
     lFindings: (n, kind) => ({ errors: `エラー ${n}`, warnings: `警告 ${n}`, notes: `注記 ${n}` }[kind]),
     phZbNumber: '例: 7843260',
     undocumentedBitsNote:
@@ -599,60 +607,58 @@ const JA: Catalog = {
 const STRINGS: Record<Lang, Catalog> = { ja: JA, en: EN };
 
 /**
- * An explicit choice wins; otherwise the browser decides.
+ * The browser decides.
  *
  * Defaulting to one language unconditionally is what produced the violation this module fixes.
+ * The branch with no `navigator` is the prerender, not a reader, so it answers what the static
+ * HTML says (`<html lang="en">` in layout.tsx); every path a reader can reach falls to English,
+ * never to the author's language.
  */
 function fromNavigator(): Lang {
     if (typeof navigator === 'undefined') return 'en';
     return navigator.language?.toLowerCase().startsWith('ja') ? 'ja' : 'en';
 }
 
-function read(): Lang {
-    try {
-        const v = localStorage.getItem(STORAGE_KEY);
-        if (v === 'en' || v === 'ja') return v;
-    } catch {
-        // Private mode. Fall through — the language is not a safety property, only the copy it
-        // selects is.
-    }
-    return fromNavigator();
-}
-
 let current: Lang = 'en';
-const listeners = new Set<() => void>();
 
-if (typeof window !== 'undefined') current = read();
+if (typeof window !== 'undefined') {
+    current = fromNavigator();
+    try {
+        localStorage.removeItem(RETIRED_KEY);
+    } catch {
+        // Private mode: there was nowhere to have stored a choice either.
+    }
+}
 
 export function getLang(): Lang {
     return current;
 }
 
-export function setLang(lang: Lang): void {
-    if (lang === current) return;
-    current = lang;
-    try {
-        localStorage.setItem(STORAGE_KEY, lang);
-    } catch {
-        /* the switch still applies for this session */
-    }
-    if (typeof document !== 'undefined') document.documentElement.lang = lang;
-    listeners.forEach(l => l());
-}
-
-function subscribe(l: () => void): () => void {
-    listeners.add(l);
-    return () => listeners.delete(l);
-}
+/** Resolved once at load and never changed, so there is nothing to subscribe to. */
+const never = () => () => {};
 
 /**
- * Re-renders on a language change.
+ * The language, and its catalog.
  *
  * The server snapshot is the prerender default; `useSyncExternalStore` is precisely the API for a
  * value that differs between the server render and the client, so this does not produce the
  * hydration mismatch that reading `navigator` during render would.
  */
-export function useLang(): { lang: Lang; t: Catalog; setLang: (l: Lang) => void } {
-    const lang = useSyncExternalStore(subscribe, () => current, () => 'en' as Lang);
-    return { lang, t: STRINGS[lang], setLang };
+export function useLang(): { lang: Lang; t: Catalog } {
+    const lang = useSyncExternalStore(never, () => current, () => 'en' as Lang);
+    return { lang, t: STRINGS[lang] };
+}
+
+/**
+ * Writes the resolved language onto `<html>`, once, after hydration.
+ *
+ * The static `lang` is the prerender's placeholder. Until this, the retired switch was the only
+ * thing that ever wrote the attribute, so a reader who never pressed it kept the placeholder
+ * whatever their browser said — and a screen reader announced the page in the wrong language. An
+ * effect rather than a write at load, so the hydrating tree still matches the HTML it came with.
+ */
+export function useDocumentLang(): void {
+    useEffect(() => {
+        document.documentElement.lang = current;
+    }, []);
 }

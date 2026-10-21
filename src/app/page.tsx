@@ -28,7 +28,6 @@ import {
     FileCode,
     FileDown,
     Github,
-    Languages,
     Loader2,
     Plug,
     Radio,
@@ -99,7 +98,7 @@ import {
     Selector,
 } from '@/components/ui';
 import { C } from '@/lib/chrome';
-import { useLang, type Catalog } from '@/lib/i18n';
+import { useDocumentLang, useLang, type Catalog } from '@/lib/i18n';
 import { usePwa } from '@/hooks/usePwa';
 import { useScreenWakeLock } from '@/hooks/useScreenWakeLock';
 import { useSmg2Link } from '@/hooks/useSmg2Link';
@@ -206,7 +205,9 @@ interface ShareControls {
 }
 
 export default function Home() {
-    const { t, lang, setLang } = useLang();
+    const { t, lang } = useLang();
+    // The reader's language onto <html>, once — the static attribute is the prerender's.
+    useDocumentLang();
     const link = useSmg2Link();
     // A full image is roughly eighteen minutes. On a phone the screen going off is the ordinary
     // way that read dies — the tab freezes, the USB transfer stalls, and the session is spent.
@@ -1124,14 +1125,6 @@ export default function Home() {
                     >
                         <Medal className="size-5" />
                     </button>
-                    <button
-                        type="button"
-                        onClick={() => setLang(lang === 'ja' ? 'en' : 'ja')}
-                        title={t.switchLanguage}
-                        className="hidden text-slate-500 transition-colors hover:text-slate-300 min-[900px]:block"
-                    >
-                        <Languages className="size-5" />
-                    </button>
                     {pwa.installable && !pwa.installed && (
                         <button
                             type="button"
@@ -1498,7 +1491,6 @@ export default function Home() {
                     installable={pwa.installable && !pwa.installed}
                     installed={pwa.installed}
                     onInstall={() => void pwa.install()}
-                    onToggleLang={() => setLang(lang === 'ja' ? 'en' : 'ja')}
                     onOpenCredits={() => { setMenuOpen(false); setCreditsOpen(true); }}
                     privacyHref={preview ? privacyUrl(lang) : null}
                     buildLabel={BUILD_ID}

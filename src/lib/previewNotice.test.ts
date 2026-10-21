@@ -269,10 +269,11 @@ describe('the dialog', () => {
         expect(html).toContain(NOTICE_TITLE);
         for (const line of Object.values(PREVIEW_NOTICE.en)) expect(html).toContain(line);
 
-        // The language, and the one way on. Nothing closes it.
+        // The one way on, and nothing else: nothing closes it, and there is no language switch —
+        // the browser decides (tsunagi-m-ux §13).
         const buttons = html.match(/<button\b[^>]*>.*?<\/button>/g) ?? [];
-        expect(buttons).toHaveLength(2);
-        expect(buttons.filter(button => button.includes(PREVIEW_NOTICE.en.confirm))).toHaveLength(1);
+        expect(buttons).toHaveLength(1);
+        expect(buttons[0]).toContain(PREVIEW_NOTICE.en.confirm);
         expect(html).toMatch(
             /<a href="https:\/\/m3\.tsunagi\.app\/en\/privacy-policy#preview" target="_blank" rel="noopener noreferrer"/);
     });

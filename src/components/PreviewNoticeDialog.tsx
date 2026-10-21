@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef } from 'react';
-import { Check, ExternalLink, Languages, Shield } from 'lucide-react';
+import { Check, ExternalLink, Shield } from 'lucide-react';
 
 import { FillButton, LABEL } from '@/components/ui';
 import { useLang } from '@/lib/i18n';
@@ -24,12 +24,11 @@ import { NOTICE_TITLE, PREVIEW_NOTICE } from '@/lib/previewNotice';
  * words between them scroll, so on a head unit (≈683×400 CSS px) the button is on screen before a
  * line has been scrolled.
  *
- * The language control is the header's, repeated here because this covers the header. An explicit
- * choice is the first thing this app's language rule honours (`i18n.ts`), and a notice that cannot
- * be switched into the owner's language is a notice confirmed unread.
+ * It opens in the owner's language — their browser's, resolved once in `i18n.ts` (tsunagi-m-ux
+ * §13) — so there is no switch here, as there is none in the header it covers.
  */
 export function PreviewNoticeDialog({ onConfirm }: { onConfirm: () => void }) {
-    const { t, lang, setLang } = useLang();
+    const { lang } = useLang();
     const n = PREVIEW_NOTICE[lang];
     const words = useRef<HTMLDivElement>(null);
 
@@ -57,15 +56,6 @@ export function PreviewNoticeDialog({ onConfirm }: { onConfirm: () => void }) {
                         <h2 id="preview-notice-title" className={`${LABEL} min-w-0 flex-1 py-2 text-slate-300`}>
                             {NOTICE_TITLE}
                         </h2>
-                        <button
-                            type="button"
-                            onClick={() => setLang(lang === 'ja' ? 'en' : 'ja')}
-                            title={t.switchLanguage}
-                            aria-label={t.switchLanguage}
-                            className="-mr-2.5 shrink-0 p-2.5 text-slate-500 transition-colors hover:text-slate-300"
-                        >
-                            <Languages className="size-5" />
-                        </button>
                     </div>
 
                     <div
