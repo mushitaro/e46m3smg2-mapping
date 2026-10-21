@@ -27,6 +27,7 @@ import {
     Download,
     FileCode,
     FileDown,
+    Github,
     Languages,
     Loader2,
     Plug,
@@ -117,7 +118,7 @@ import {
     recordDiagnostic, renderDiagnostic, sendDiagnostic, type CloudDiagnostic, type DiagnosticKind,
 } from '@/lib/diagnostics';
 import { editsFromShared, parseSharedEdits } from '@/lib/cloudRestore';
-import { privacyUrl } from '@/lib/links';
+import { PROJECT_REPO_URL, privacyUrl } from '@/lib/links';
 import { reauthHref } from '@/lib/owner-sync';
 import { confirmNotice, usePreviewNoticeOpen } from '@/lib/previewNotice';
 import { useBuildLabel, usePreviewBuild } from '@/lib/variant';
@@ -281,6 +282,13 @@ export default function Home() {
     /** Which pane a narrow window shows. */
     const [narrowPane, setNarrowPane] = useState<'map' | 'graph' | 'dash'>('map');
     const [menuOpen, setMenuOpen] = useState(false);
+    /** Where the press that opened the menu landed, while it is still down — the sheet follows the
+     *  finger from there and commits on release. Cleared on pointerup wherever it lands, so a tap
+     *  that merely opens the sheet leaves it in ordinary tap-to-choose mode. */
+    const [menuDrag, setMenuDrag] = useState<{ x: number; y: number } | null>(null);
+    /** Stable, because the sheet's sweep effect depends on it: an inline arrow would tear down and
+     *  re-attach its three window listeners on every render of this page. */
+    const clearMenuDrag = useCallback(() => setMenuDrag(null), []);
     const [creditsOpen, setCreditsOpen] = useState(false);
 
     // GRAPH exists only where the height forces the split; elsewhere DASH already holds it.
@@ -1094,8 +1102,20 @@ export default function Home() {
                             <Shield className="size-5" />
                         </a>
                     )}
-                    {/* MEDAL after PRIVACY, as in every M tool: who this is built on, and the MESH
-                        colophon. The one item here that is an acknowledgement rather than a tool. */}
+                    {/* GITHUB second, as in every M tool (tsunagi-m-chrome §1) — and on every build,
+                        because the repository is public whichever build points at it. */}
+                    <a
+                        href={PROJECT_REPO_URL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="View on GitHub"
+                        className="hidden text-slate-500 transition-colors hover:text-slate-300 min-[900px]:block"
+                    >
+                        <Github className="size-5" />
+                    </a>
+                    {/* MEDAL after PRIVACY and GITHUB, as in every M tool: who this is built on, and
+                        the MESH colophon. The one item here that is an acknowledgement rather than a
+                        tool. */}
                     <button
                         type="button"
                         onClick={() => setCreditsOpen(true)}
@@ -1395,17 +1415,48 @@ export default function Home() {
                 </div>
             </div>
 
+            {/* ABOVE the footer, not below it. Below, a notice pushed the footer up by its own
+                height — 82px at 360x800 for a 1,000-byte image's — so MENU left the bottom centre
+                the thumb reaches for without looking, and the sheet's ✕, which always sits at the
+                bottom, no longer landed where the press had. Here MENU stays at y=774 with it up.
+                The footer is hidden from 900px, where this is still the last row on screen. */}
+            {notice && (
+                <div className="flex-none bg-red-500/15 px-4 py-2 text-[11px] text-red-400">
+                    {notice}{' '}
+                    <button type="button" className={`${LABEL} ml-2 text-slate-400`} onClick={() => setNotice(null)}>
+                        {C.bDismiss}
+                    </button>
+                </div>
+            )}
+
             {/* ═══ MOBILE FOOTER (52) ═══════════════════════════════════════════════════════ */}
-            <div className="z-30 flex-none border-t border-slate-900 bg-slate-900/50 backdrop-blur-sm min-[900px]:hidden">
+            {/* Outside both panes on purpose: each pane hides the other below 900px, so anything
+                living inside one of them takes the way back out of the other with it.
+
+                No blur, and slate-950/80 rather than 900/50: this bar exists only below 900px, which
+                is exactly where there is no GPU to spend compositing a full-width backdrop-filter
+                over panes that are opaque anyway (tsunagi-m-mobile §16.5). The family's footer, as
+                the reference tuner draws it. */}
+            <div className="z-30 flex-none border-t border-slate-900 bg-slate-950/80 min-[900px]:hidden">
                 <div className="relative flex h-[52px] items-center px-4">
                     {narrowPaneTabs}
                     {/* MENU is centred absolutely, so it stays on the screen's centre line
-                        whatever the groups either side of it weigh. */}
+                        whatever the groups either side of it weigh.
+
+                        Opens on pointerdown, not click, so the same press can carry on into the
+                        sheet and pick a row on the way back up. `touch-none` stops the browser
+                        claiming the gesture as a scroll before the menu ever sees it.
+
+                        The release is NOT handled here. The sheet's scrim goes up on this very
+                        pointerdown and covers this button, so its own pointerup never arrives — the
+                        drag would stay armed after the finger had gone and the next release anywhere
+                        would read as a selection. The sheet ends the drag instead, from a
+                        window-level listener that always fires. */}
                     <button
                         type="button"
-                        onClick={() => setMenuOpen(true)}
+                        onPointerDown={e => { e.preventDefault(); setMenuOpen(true); setMenuDrag({ x: e.clientX, y: e.clientY }); }}
                         aria-label={C.menu}
-                        className="absolute left-1/2 top-0 z-10 flex h-[52px] w-[52px] -translate-x-1/2 cursor-pointer items-center justify-center text-slate-400 hover:text-slate-200"
+                        className="absolute left-1/2 top-0 z-10 flex h-[52px] w-[52px] -translate-x-1/2 cursor-pointer touch-none items-center justify-center text-slate-400 hover:text-slate-200"
                     >
                         <MarkIcon className="h-7 w-8" />
                     </button>
@@ -1419,36 +1470,41 @@ export default function Home() {
             {menuOpen && (
                 <MobileMenu
                     onClose={() => setMenuOpen(false)}
+                    dragFrom={menuDrag}
+                    onDragEnd={clearMenuDrag}
                     tabs={TABS}
                     activeTab={tab}
+                    /* Picking a view is also asking to look at it: the tab changes AND the map pane
+                       comes forward, or the choice lands behind whichever pane was showing. */
                     onSelectTab={id => { setTab(id as TabId); setNarrowPane('map'); }}
-                    vehicle={{ zb: zbNumber || null, hw: hardware, space: spaceText, link: `${link.practice ? 'practice' : 'live'} · ${link.phase}` }}
+                    /* The header's identity strip, word for word, and the hub status row's link. */
+                    vehicle={{
+                        zb: zbNumber || (workspace?.origin.kind === 'vehicle' ? workspace.origin.identity?.zbNumber ?? null : null),
+                        hw: hardware,
+                        space: spaceText,
+                        spaceUnconfirmed: link.addressSpaceConfidence === 'unconfirmed',
+                        link: `${link.practice ? 'practice' : 'live'} · ${link.phase}`,
+                    }}
+                    /* The session bar's facts: what this started from, what it is, what changed. */
                     session={workspace ? {
                         source: describeOrigin(workspace.origin),
-                        variant: workspace.variant,
+                        base: workspace.variant ?? C.vPartial,
                         edits: editedCellCount(workspace),
-                        crc: checksum ? (checksum.ok ? C.vCrcOk : C.vCrcBad) : null,
+                        dirty: isDirty(workspace),
+                        crc: checksum ? { ok: checksum.ok, label: checksum.ok ? C.vCrcOk : C.vCrcBad } : null,
                     } : null}
-                    onExport={workspace ? onExport : null}
-                    onClear={workspace ? onClearWorkspace : null}
                     onReload={handleReload}
                     updateAvailable={updateOffered}
                     installable={pwa.installable && !pwa.installed}
+                    installed={pwa.installed}
                     onInstall={() => void pwa.install()}
                     onToggleLang={() => setLang(lang === 'ja' ? 'en' : 'ja')}
-                    onCredits={() => { setMenuOpen(false); setCreditsOpen(true); }}
+                    onOpenCredits={() => { setMenuOpen(false); setCreditsOpen(true); }}
                     privacyHref={preview ? privacyUrl(lang) : null}
+                    buildLabel={BUILD_ID}
                 />
             )}
 
-            {notice && (
-                <div className="flex-none bg-red-500/15 px-4 py-2 text-[11px] text-red-400">
-                    {notice}{' '}
-                    <button type="button" className={`${LABEL} ml-2 text-slate-400`} onClick={() => setNotice(null)}>
-                        {C.bDismiss}
-                    </button>
-                </div>
-            )}
         </main>
 
         {/* Outside <main>, which is inert while this is up. */}

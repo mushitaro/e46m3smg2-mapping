@@ -336,8 +336,8 @@ footer (52, 900px 未満)  MAP · GRAPH · DASH   ///M MENU
 | ツリー category → kind → symbol、28px レール | 同じ。`●` 定数 / `◠` カーブ / `▦` マップ、罫線ガイド、`◇` は本プロジェクト追加 |
 | `ParamInfo` の meta + 推論ティア | 同じ。琥珀の縦罫が「ベンダー定義ではなく実ダンプで確かめたもの」 |
 | `CalibrationDiffList` FILTER / COPY n SHOWN | 同じ |
-| `narrowPane` MAP/GRAPH/DASH + ///M MENU | 同じ。GRAPH は**狭くかつ低い**ビューポートでのみ出る |
-| `MobileMenu` VEHICLE / SESSION / VIEW | 同じ。ECU に触る操作は入れない |
+| `narrowPane` MAP/GRAPH/DASH + ///M MENU | 同じ。MENU は pointerdown で開く。GRAPH は**狭くかつ低い**ビューポートでのみ出る |
+| `MobileMenu` VEHICLE / SESSION / VIEW | 同じ（TUNER の `MobileMenu.tsx` を写した）。上端はヘッダと同じアイコン帯、VIEW は押す・滑らす・離すで選ぶ。SESSION は読み値だけ —— 画像は読み込んだ時点で記録され、EXPORT と CLEAR は hub にあるので、NEW / SAVE / SYNC のセルに当たるものが無い。ECU に触る操作は入れない |
 | `useFitScale` / `useWideLayout` | そのまま移植 |
 
 **実測**（practice 読み込み後）:

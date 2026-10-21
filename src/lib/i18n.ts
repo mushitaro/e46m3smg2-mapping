@@ -172,6 +172,8 @@ export interface Catalog {
     catalogNoteProvenance: string;
     updateAvailableHint: string;
     reloadHint: string;
+    /** The menu sheet's INSTALL, greyed: why there is nothing to press. */
+    installUnavailableHint: string;
     reloadBusy: string;
     rawNote: (bytes: string) => string;
     rawBody: string;
@@ -358,6 +360,7 @@ const EN: Catalog = {
     catalogNoteProvenance: 'Established by this project against the real dump, not stated by the vendor definition.',
     updateAvailableHint: 'A newer build is on the server — reload to take it.',
     reloadHint: 'Reload the app.',
+    installUnavailableHint: 'Install — not offered by this browser.',
     reloadBusy: 'The link is up or there are unsaved edits. Reload anyway?',
     rawNote: b => `${b} bytes. Neither MS4X definition is written for this length.`,
     rawBody: 'These bytes came off the ECU, but no definition describes an image of this length, '
@@ -555,6 +558,7 @@ const JA: Catalog = {
     catalogNoteProvenance: 'ベンダー定義の記述ではなく、このプロジェクトが実ダンプに対して確かめたものです。',
     updateAvailableHint: 'サーバに新しいビルドがあります。再読み込みで取り込みます。',
     reloadHint: 'アプリを再読み込みします。',
+    installUnavailableHint: 'インストール — このブラウザでは提供されていません。',
     reloadBusy: 'リンクが接続中か、未保存の編集があります。それでも再読み込みしますか？',
     rawNote: b => `${b} バイト。この長さに対応する MS4X 定義はありません。`,
     rawBody: 'ECU から読み出したバイトですが、この長さのイメージを記述する定義が無いため、ここでは何も'

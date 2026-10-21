@@ -18,6 +18,9 @@ export function privacyUrl(lang: Lang): string {
     return PRIVACY_PREVIEW[lang];
 }
 
+/** This app's source — public, so an owner can see what the build they are running does. */
+export const PROJECT_REPO_URL = 'https://github.com/mushitaro/e46m3smg2-mapping';
+
 /**
  * MESH — where the work continues and who carries it. Linked once, from the CREDITS colophon
  * (tsunagi-m-chrome §4). A plain link in a new tab; nothing is prefetched.
