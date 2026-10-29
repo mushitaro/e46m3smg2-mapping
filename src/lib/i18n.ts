@@ -208,6 +208,17 @@ export interface Catalog {
     restoreCorrupt: string;
     restoreFailed: string;
     reauthUnsaved: string;
+    /**
+     * The header's notice while the sign-in has lapsed, in two halves: a phone sets them as its two
+     * lines, so the break falls between them and not inside a word. The second half starts with the
+     * space that joins them on one line; at the start of a line it is not drawn.
+     */
+    lapsedNotice: readonly [string, string];
+    /** Its long form, on the notice's title. */
+    lapsedHint: string;
+    /** The same, while this device's clock is out and the sign-in waits for it. */
+    clockNotice: readonly [string, string];
+    clockHint: string;
     privacyHint: string;
 }
 
@@ -379,8 +390,8 @@ const EN: Catalog = {
 
     noticeExport: 'EXPORT writes the edited .bin with its checksum corrected, and its manifest.',
     syncExpired:
-        'The WORKS sign-in has lapsed. The session is safe on this device — SIGN IN is under '
-        + 'STARTUP › CLOUD, once the cable is disconnected.',
+        'The WORKS sign-in has lapsed. The session is safe on this device — SIGN IN is at the top '
+        + 'of the screen, once the cable is disconnected.',
     syncTooLarge: 'Too large to save: one row holds at most 1.9 MB. EXPORT the .bin instead.',
     syncOffline: 'No network. The session is safe on this device; SYNC again when online.',
     syncFailed: why => `Not saved (${why}). The session is safe on this device.`,
@@ -389,8 +400,9 @@ const EN: Catalog = {
         ? `Saved to account ${account}. Only that account can see these.`
         : 'Saved to your WORKS account. Only you can see these.'),
     cloudExpired:
-        'The WORKS sign-in has lapsed. Everything on this device is still here. SIGN IN goes '
-        + 'through m3 and comes back to this page; it is offered while the cable is disconnected.',
+        'The WORKS sign-in has lapsed. Everything on this device is still here. SIGN IN, at the top '
+        + 'of the screen, goes through m3 and comes back to this page; it is offered while the cable '
+        + 'is disconnected.',
     cloudEmpty: 'Nothing saved yet. SYNC on the hub saves the session in hand.',
     cloudUnavailable: 'The list could not be read — offline, or the server did not answer.',
     cloudRecordsNote: pending => 'Filed automatically after every read and every failure, so a '
@@ -407,6 +419,16 @@ const EN: Catalog = {
     reauthUnsaved:
         'Signing in again leaves this page for m3 and comes back. Your edits are kept on this '
         + 'device. Go now?',
+    lapsedNotice: ['Signed out.', ' Updates can’t arrive.'],
+    lapsedHint:
+        'The WORKS sign-in has lapsed, so no new build can reach this device until you sign in '
+        + 'again. SIGN IN goes through m3 and comes back to this page; it is offered while the cable '
+        + 'is disconnected.',
+    clockNotice: ['Device clock is out.', ' Retrying once it’s right.'],
+    clockHint:
+        'The WORKS sign-in has lapsed, and this device’s clock is out: signed in now, it would lapse '
+        + 'again the moment the clock is put right. Once the clock is right this tries again by '
+        + 'itself — there is nothing to press.',
     privacyHint: 'Privacy policy — what this WORKS build sends, and why',
 };
 
@@ -577,7 +599,7 @@ const JA: Catalog = {
     noticeExport: 'EXPORT で、チェックサムを直した編集済みの .bin とマニフェストを書き出します。',
     syncExpired:
         'ワークス版のログインの期限が切れました。セッションはこの端末に残っています。'
-        + 'ケーブルを外すと、STARTUP › CLOUD に SIGN IN が出ます。',
+        + 'ケーブルを外すと、画面上部に SIGN IN が出ます。',
     syncTooLarge: '大きすぎて保存できません（1 行 1.9 MB まで）。EXPORT で .bin を書き出してください。',
     syncOffline: 'ネットワークがありません。セッションはこの端末に残っています。オンラインで SYNC してください。',
     syncFailed: why => `保存できませんでした（${why}）。セッションはこの端末に残っています。`,
@@ -587,7 +609,7 @@ const JA: Catalog = {
         : '保存先はワークス版のあなたのアカウントです。あなたからだけ見えます。'),
     cloudExpired:
         'ワークス版のログインの期限が切れました。この端末のデータはすべて残っています。'
-        + 'SIGN IN は m3 を経由してこのページに戻ります。ケーブルを外している間に表示されます。',
+        + '画面上部の SIGN IN は m3 を経由してこのページに戻ります。ケーブルを外している間に表示されます。',
     cloudEmpty: 'まだ保存したものはありません。ハブの SYNC で、今のセッションを保存できます。',
     cloudUnavailable: '一覧を読めませんでした。オフラインか、サーバが応答していません。',
     cloudRecordsNote: pending => '読み取りのたび、失敗のたびに自動で記録します。'
@@ -601,6 +623,14 @@ const JA: Catalog = {
     restoreCorrupt: 'クラウドの控えが自分の SHA-256 と一致しないため、復元しませんでした。',
     restoreFailed: 'クラウドの控えを読めませんでした。この端末では何も変わっていません。',
     reauthUnsaved: 'ログインし直すと、m3 を経由してこのページに戻ります。編集はこの端末に残ります。進みますか？',
+    lapsedNotice: ['ログインが切れ、', '更新が届きません。'],
+    lapsedHint:
+        'ワークス版のログインが切れています。ログインし直すまで、新しい版はこの端末に届きません。'
+        + 'SIGN IN は m3 を経由してこのページに戻ります。ケーブルを外している間に表示されます。',
+    clockNotice: ['端末の時計がずれています。', '合えば自動でやり直します。'],
+    clockHint:
+        'ワークス版のログインが切れています。この端末の時計がずれているため、今ログインし直すと、'
+        + '時計が直ったときにまた切れてしまいます。時計が合えば自動でやり直すので、押すものはありません。',
     privacyHint: 'プライバシーポリシー — このワークス版が送るものと、その理由',
 };
 

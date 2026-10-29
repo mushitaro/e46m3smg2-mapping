@@ -60,12 +60,16 @@ function refusingStorage() {
     vi.stubGlobal('localStorage', { getItem: refuse, setItem: refuse, removeItem: refuse, clear: refuse, key: refuse, length: 0 });
 }
 
-/** Every request the page makes, as `METHOD path`. The gate answers as an active session for #TEST. */
+/**
+ * Every request the page makes, as `METHOD path`. The gate answers as an active session for #TEST.
+ * The device's clock, which the status call carries as `t` (the gate extends the session only with
+ * it), is recorded as `t=<clock>`: that it is sent is pinned, what it reads is not.
+ */
 function network() {
     const requests: string[] = [];
     vi.stubGlobal('fetch', vi.fn(async (input: string, init?: RequestInit) => {
-        requests.push(`${init?.method ?? 'GET'} ${input}`);
-        const body = input === '/_gate/status' ? { state: 'active', account_label: '#TEST' } : { id: 'row' };
+        requests.push(`${init?.method ?? 'GET'} ${input.replace(/([?&]t=)\d+/, '$1<clock>')}`);
+        const body = input.split('?')[0] === '/_gate/status' ? { state: 'active', account_label: '#TEST' } : { id: 'row' };
         return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
     }));
     return requests;
@@ -235,7 +239,7 @@ describe('nothing is sent before the owner confirms', () => {
         notice.confirmNotice();
         expect((await sync.saveExtraction(SESSION)).ok).toBe(true);
         expect(await diagnostics.flushDiagnostics()).toBe(1);
-        expect(requests).toEqual(['POST /api/extractions', 'GET /_gate/status', 'POST /api/diagnostics']);
+        expect(requests).toEqual(['POST /api/extractions', 'GET /_gate/status?t=<clock>', 'POST /api/diagnostics']);
         expect(idb.rows('smg2-outbox')).toHaveLength(0);
     });
 
@@ -252,7 +256,7 @@ describe('nothing is sent before the owner confirms', () => {
         await diagnostics.recordDiagnostic(FAILED_READ);
         notice.confirmNotice();
         expect(await diagnostics.flushDiagnostics()).toBe(0);
-        expect(requests).toEqual(['GET /_gate/status']);
+        expect(requests).toEqual(['GET /_gate/status?t=<clock>']);
         expect(idb.rows('smg2-outbox')).toHaveLength(0);
     });
 });

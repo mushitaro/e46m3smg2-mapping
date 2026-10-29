@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { CloudOff, FileInput, LogIn, RefreshCw, Trash2 } from 'lucide-react';
+import { CloudOff, FileInput, RefreshCw, Trash2 } from 'lucide-react';
 
 import { C } from '@/lib/chrome';
 import { useLang } from '@/lib/i18n';
@@ -20,9 +20,10 @@ import { DataList, DataRow, EmptyState, MicroLabel, Pill, Section, TextButton, h
  *   who signed in on a borrowed phone can see whose account is receiving the car's data.
  * - **What is saved?** Sessions (the image, how it was read, the edits), and the diagnostic
  *   records the app files on its own after every read and every failure.
- * - **Can I still reach it?** When the preview session has lapsed, it says so and offers SIGN IN —
- *   but only when the page says it is safe to leave (nothing connected, nothing running), because
- *   signing in is a same-tab trip through m3.
+ * - **Can I still reach it?** When the preview session has lapsed, it says so, and points to SIGN IN
+ *   at the top of the screen. That is the one way in (`tsunagi-m-ux` §11): it is on every width, it
+ *   knows when the device's clock is out and nothing should be pressed (lib/signIn.ts), and a
+ *   second SIGN IN here would be the same act twice on one screen.
  *
  * RESTORE puts a saved session back into SESSIONS on this device, edits included. DELETE removes
  * the cloud copy only; the copy on this device, if there is one, is untouched — the confirmation
@@ -33,7 +34,6 @@ export function CloudPanel({
     cloud,
     busyId,
     canRestore,
-    reauth,
     onRestore,
     onDeleteSession,
     onDeleteDiagnostic,
@@ -43,8 +43,6 @@ export function CloudPanel({
     busyId: string | null;
     /** False while the link is busy: restoring replaces the image in hand. */
     canRestore: boolean;
-    /** Present only when signing in again is both needed and safe. */
-    reauth: (() => void) | null;
     onRestore: (row: CloudSession) => void;
     onDeleteSession: (row: CloudSession) => void;
     onDeleteDiagnostic: (row: CloudDiagnostic) => void;
@@ -58,19 +56,14 @@ export function CloudPanel({
             count={cloud.sessions?.length}
             note={expired ? t.cloudExpired : t.cloudNote(cloud.account)}
             actions={
-                <>
-                    {reauth && (
-                        <TextButton Icon={LogIn} onClick={reauth}>{C.bSignIn}</TextButton>
-                    )}
-                    <TextButton
-                        Icon={RefreshCw}
-                        tone="neutral"
-                        disabled={cloud.loading}
-                        onClick={() => void cloud.refresh()}
-                    >
-                        {C.bRefresh}
-                    </TextButton>
-                </>
+                <TextButton
+                    Icon={RefreshCw}
+                    tone="neutral"
+                    disabled={cloud.loading}
+                    onClick={() => void cloud.refresh()}
+                >
+                    {C.bRefresh}
+                </TextButton>
             }
         >
             {cloud.sessions === null ? (

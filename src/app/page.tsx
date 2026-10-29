@@ -120,6 +120,7 @@ import { editsFromShared, parseSharedEdits } from '@/lib/cloudRestore';
 import { PROJECT_REPO_URL, privacyUrl } from '@/lib/links';
 import { reauthHref } from '@/lib/owner-sync';
 import { confirmNotice, usePreviewNoticeOpen } from '@/lib/previewNotice';
+import { claimRepass, lastRepass, signInAction } from '@/lib/signIn';
 import { useBuildLabel, usePreviewBuild } from '@/lib/variant';
 import { useCloud } from '@/hooks/useCloud';
 import {
@@ -232,15 +233,20 @@ export default function Home() {
      * UPDATE is not offered, until the link is back to disconnected.
      */
     const linkBusy = link.phase !== 'disconnected';
-    const pwa = usePwa(linkBusy);
-    const updateOffered = pwa.updated && !linkBusy;
-
     /**
      * The owner preview, or not. Everything SYNC — the hub face, SEND, the CLOUD list, the records
      * filed on their own, the status poll — is drawn and run only when this is true, and a
-     * production build (no `app-variant`) makes no request to the gate or the API at all.
+     * production build (no `app-variant`) makes no request to the gate or the API at all. It also
+     * tells the update check that the gate is there to ask (usePwa).
      */
     const preview = usePreviewBuild();
+    const pwa = usePwa(linkBusy, preview);
+    /**
+     * Not while the WORKS sign-in has lapsed, either. The header then says no update can arrive,
+     * and a pulsing UPDATE beside it would say one had. A build that installed before the lapse
+     * stays installed, and is offered again once the gate lets this device back in.
+     */
+    const updateOffered = pwa.updated && !linkBusy && !pwa.lapse;
     /** What this build is called — WORKS on the preview, nothing on production. The badge only. */
     const buildLabel = useBuildLabel();
     /**
@@ -868,17 +874,48 @@ export default function Home() {
     }, [cloudBusy, cloud, t]);
 
     /**
-     * SIGN IN, when the preview session has lapsed — offered only when it is safe to leave the page:
-     * online (an offline "expired" is not knowable, and m3 would not load), the link disconnected,
-     * nothing saving or restoring. It is a same-tab trip through m3 and back, because m3 only sees
-     * its own cookie on a top-level navigation.
+     * SIGN IN, in the header, when the preview session has lapsed — offered only when it is safe to
+     * leave the page: online (an offline "expired" is not knowable, and m3 would not load), the link
+     * disconnected, nothing saving or restoring. It is a same-tab trip through m3 and back, because
+     * m3 only sees its own cookie on a top-level navigation. Edits are kept on this device, but the
+     * owner is asked first all the same.
      */
-    const reauthOffered = preview && cloud.gate === 'expired' && pwa.online && !linkBusy
-        && !sharing && cloudBusy === null;
+    const canLeave = pwa.online && !linkBusy && !sharing && cloudBusy === null;
     const onReauth = useCallback(() => {
         if (isDirty(workspace) && !confirm(t.reauthUnsaved)) return;
         window.location.assign(reauthHref());
     }, [workspace, t]);
+
+    /**
+     * The lapse the update check found (usePwa), and what follows from it (lib/signIn.ts): through
+     * the gate by itself when nothing here would be lost and the clock is right; otherwise the
+     * notice in the header. Production never has a lapse, so this is always 'none' there.
+     */
+    const [repassedAt, setRepassedAt] = useState(() => lastRepass(Date.now()));
+    const signIn = signInAction({
+        lapse: pwa.lapse,
+        linkBusy,
+        unsaved: isDirty(workspace) || sharing || cloudBusy !== null,
+        online: pwa.online,
+        lastRepass: repassedAt,
+        now: Date.now(),
+    });
+    const lapseShown = signIn === 'notice-signin' || signIn === 'notice-clock';
+    useEffect(() => {
+        if (signIn !== 'repass') return;
+        const now = Date.now();
+        // The turn is taken before leaving. Refused — the window not yet open, or no storage to
+        // record it in — the notice shows instead (signIn.ts).
+        const claimed = claimRepass(now);
+        setRepassedAt(now);
+        if (claimed) window.location.assign(reauthHref());
+    }, [signIn]);
+    // A 401 heard elsewhere — the status poll, an API call — goes through the same question to the
+    // gate, which is what knows whether the clock agrees.
+    const { recheckSignIn } = pwa;
+    useEffect(() => {
+        if (cloud.gate === 'expired') recheckSignIn();
+    }, [cloud.gate, recheckSignIn]);
 
     /**
      * What a write would be asked to do, derived rather than stored.
@@ -1062,15 +1099,20 @@ export default function Home() {
                         title={`SMG: ${link.phase}${link.error ? ' — ' + link.error : ''}`}
                         className={`block size-2 shrink-0 rounded-full ${LED[link.phase]}`}
                     />
-                    <h1 className={`${WORDMARK} min-w-0 max-w-[60%] overflow-hidden text-ellipsis whitespace-nowrap text-slate-200 min-[900px]:max-w-none`}>
+                    {/* On a phone it stands down while the sign-in notice is up: squeezed beside it,
+                        it came to one letter at 360px and two at 390, which names nothing. The LED
+                        and the badge stay; from 640px — the head unit is 683 — there is room again. */}
+                    <h1 className={`${WORDMARK} ${lapseShown ? 'hidden min-[640px]:block' : ''} min-w-0 max-w-[60%] overflow-hidden text-ellipsis whitespace-nowrap text-slate-200 min-[900px]:max-w-none`}>
                         E46M3SMG2 <MMark /> MAPPING
                     </h1>
                     {/* What this build is called: WORKS on the owners' build, nothing on the release.
                         Amber, because it is not the release; a tag, not a control. */}
                     {buildLabel && <Pill tone="caution">{buildLabel}</Pill>}
                     {/* Which build this is, once you are already inside it. Below 900px the build id
-                        gives its room to the badge; it stays in STARTUP › CONNECTION › BUILD. */}
-                    <span className="shrink-0 whitespace-nowrap font-mono text-[9px] text-slate-500">
+                        gives its room to the badge; it stays in STARTUP › CONNECTION › BUILD. And
+                        there the version stands down while the sign-in notice is up — the two
+                        would crowd one phone header, and the notice is the one with news. */}
+                    <span className={`${lapseShown ? 'hidden min-[900px]:inline' : ''} shrink-0 whitespace-nowrap font-mono text-[9px] text-slate-500`}>
                         V{APP_VERSION}<span className="hidden min-[900px]:inline"> · {BUILD_ID}</span>
                     </span>
                     {!CAPABILITIES.canWriteToEcu && <span className="hidden min-[900px]:inline"><Pill tone="ok">{C.readOnly}</Pill></span>}
@@ -1088,6 +1130,28 @@ export default function Home() {
                         <span className={`${LABEL} flex items-center gap-1.5 text-amber-400`} title={t.offlineBuildNote}>
                             <WifiOff className="size-3" />
                             <span className="hidden min-[900px]:inline">{C.offline}</span>
+                        </span>
+                    )}
+                    {/* The lapsed WORKS sign-in (lib/signIn.ts), on every width — on a phone this is
+                        the corner UPDATE lands in, and what the lapse costs is updates. The head
+                        unit is where it happens, and a reason kept on `title` does not exist on a
+                        touch screen, so the short form is drawn: its two halves as two lines on a
+                        phone, one line from 640px, the long form on the title. The one SIGN IN on
+                        the page (CloudPanel points here), only where leaving is safe. The clock
+                        case has nothing to press: it is retried by itself once the clock is right. */}
+                    {lapseShown && (
+                        <span className="flex items-center gap-3">
+                            <span
+                                title={signIn === 'notice-clock' ? t.clockHint : t.lapsedHint}
+                                className="text-[11px] leading-[14px] text-amber-400 min-[640px]:whitespace-nowrap"
+                            >
+                                {(signIn === 'notice-clock' ? t.clockNotice : t.lapsedNotice).map(half => (
+                                    <span key={half} className="block whitespace-nowrap min-[640px]:inline">{half}</span>
+                                ))}
+                            </span>
+                            {signIn === 'notice-signin' && canLeave && (
+                                <TextButton className="-my-3 shrink-0 py-3" onClick={onReauth}>{C.bSignIn}</TextButton>
+                            )}
                         </span>
                     )}
                     {/* PRIVACY leads the cluster, as it does in every M tool. Preview only: it is the
@@ -1235,7 +1299,6 @@ export default function Home() {
                                             cloud={cloud}
                                             busyId={cloudBusy}
                                             canRestore={!linkBusy}
-                                            reauth={reauthOffered ? onReauth : null}
                                             onRestore={row => void onRestoreCloud(row)}
                                             onDeleteSession={row => void onDeleteCloudSession(row)}
                                             onDeleteDiagnostic={row => void onDeleteCloudDiagnostic(row)}
