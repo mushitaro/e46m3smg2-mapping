@@ -31,7 +31,7 @@ import { useShortLandscape } from '@/hooks/useWideLayout';
  * **SESSION is readouts only.** The tuner's band carries NEW, SAVE and SYNC because its sessions
  * are started, saved and synced by hand. Here they are not: every image is recorded the moment it
  * is adopted, and the two things you do to the open one — EXPORT and CLEAR — are the hub's
- * sub-actions on DASH, one tap away on every width. A second copy of them in here would be a
+ * sub-actions on HUB, one tap away on every width. A second copy of them in here would be a
  * second entrance to the same job (tsunagi-m-ux §11), and CLEAR is not a row to release a sweep
  * near.
  *

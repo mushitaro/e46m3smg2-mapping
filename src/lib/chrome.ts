@@ -214,7 +214,7 @@ export const C = {
     statusRowSmg: 'SMG (LIVE)',
     narrowMap: 'MAP',
     narrowGraph: 'GRAPH',
-    narrowDash: 'DASH',
+    narrowDash: 'HUB',
     menu: 'MENU',
     close: 'CLOSE',
     bandVehicle: 'VEHICLE',
