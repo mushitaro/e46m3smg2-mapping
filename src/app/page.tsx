@@ -9,7 +9,7 @@
  *     │ session bar (26)  source · BASE · CRC     │ visualization  (elastic) ValuePane      │
  *     │ content:  [ picture (flex-1) | TREE ]     │ inputs (38.2%) [DIFF n][INFO][SMG ●]    │
  *     └───────────────────────────────────────────┴─────────────────────────────────────────┘
- *     footer (52, <900px)   MAP · GRAPH · DASH   ///M MENU
+ *     footer (52, <900px)   MAP · GRAPH · HUB    ///M MENU
  *
  * Below 900px the two columns share one grid cell and `narrowPane` decides which is on screen; the
  * other stays laid out and merely invisible, so nothing is mounted twice and nothing is unmounted
@@ -298,7 +298,7 @@ export default function Home() {
     const clearMenuDrag = useCallback(() => setMenuDrag(null), []);
     const [creditsOpen, setCreditsOpen] = useState(false);
 
-    // GRAPH exists only where the height forces the split; elsewhere DASH already holds it.
+    // GRAPH exists only where the height forces the split; elsewhere HUB already holds it.
     useEffect(() => {
         if (narrowPane === 'graph' && !splitGraph) setNarrowPane('dash');
     }, [narrowPane, splitGraph]);
